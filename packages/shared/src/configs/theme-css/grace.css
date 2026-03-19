@@ -113,8 +113,14 @@ thead {
   color: #fff;
 }
 
+th {
+  padding: 0.5em 1em;
+  text-align: left;
+}
+
 td {
   padding: 0.5em 1em;
+  text-align: left;
 }
 
 /* ==================== 强调 ==================== */

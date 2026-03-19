@@ -103,6 +103,11 @@ export const colorOptions: IConfigOption[] = [
     value: `#FFB7C5`,
     desc: `浪漫甜美`,
   },
+  {
+    label: `璀璨金`,
+    value: `#D4AF37`,
+    desc: `尊贵典雅`,
+  },
 ]
 
 export const widthOptions: IConfigOption[] = [

@@ -390,6 +390,7 @@ th {
   color: hsl(var(--foreground));
   word-break: keep-all;
   background: rgba(0, 0, 0, 0.05);
+  text-align: left;
 }
 
 td {
@@ -397,6 +398,7 @@ td {
   padding: 0.25em 0.5em;
   color: hsl(var(--foreground));
   word-break: keep-all;
+  text-align: left;
 }
 
 /* ==================== KaTeX 公式 ==================== */
