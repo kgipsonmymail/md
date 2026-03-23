@@ -154,10 +154,10 @@ onMounted(async () => {
   else {
     // 补齐较短的数组
     if (promptsLength < imagesLength) {
-      imagePrompts.value = [...imagePrompts.value, ...Array.from({ length: imagesLength - promptsLength }, () => ``)]
+      imagePrompts.value = [...imagePrompts.value, ...Array.from({ length: imagesLength - promptsLength }).fill(``)]
     }
     if (timestampsLength < imagesLength) {
-      imageTimestamps.value = [...imageTimestamps.value, ...Array.from({ length: imagesLength - timestampsLength }, () => Date.now())]
+      imageTimestamps.value = [...imageTimestamps.value, ...Array.from({ length: imagesLength - timestampsLength }).fill(Date.now())]
     }
   }
 
@@ -511,6 +511,9 @@ function insertImageToCursor(imageUrl: string) {
 
     // 聚焦编辑器
     editor.value.focus()
+
+    // 显示成功提示
+    toast.success(`AI排版内容已经更新在编辑器`)
 
     // 关闭弹窗
     dialogVisible.value = false

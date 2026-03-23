@@ -1,0 +1,27 @@
+{
+  "imageHost": {
+    "type": "github",
+    "github": {
+      "token": "",
+      "owner": "",
+      "repo": "",
+      "branch": "main",
+      "path": "wind-assets",
+      "useCDN": true
+    }
+  },
+  "aiFormatter": {
+    "provider": "openai",
+    "apiEndpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    "apiKey": "",
+    "model": "glm-4-flash-250414",
+    "temperature": 0.7,
+    "prompt": "/wind/system_prompt.md"
+  },
+  "processing": {
+    "imageCompression": true,
+    "maxImageSize": 1920,
+    "imageQuality": 0.9,
+    "autoBackup": true
+  }
+}

@@ -263,6 +263,8 @@ function replaceText() {
   })
   editorView.focus()
 
+  toast.success(`AI排版内容已经更新在编辑器`)
+
   currentText.value = message.value
   resetState()
 }
@@ -384,9 +386,20 @@ defineExpose({ dialogVisible, runAIAction, replaceText, show, close, stopAI })
         </div>
 
         <!-- result -->
-        <div v-if="message">
-          <div class="mb-1.5 text-sm font-medium">
-            处理结果
+        <div v-if="message" class="relative">
+          <div class="mb-1.5 flex items-center justify-between">
+            <div class="text-sm font-medium">
+              处理结果
+            </div>
+            <Button
+              v-if="hasResult && !loading"
+              size="sm"
+              variant="outline"
+              class="h-7 px-2 text-xs"
+              @click="replaceText"
+            >
+              一键替换到编辑区
+            </Button>
           </div>
           <div
             ref="resultContainer"

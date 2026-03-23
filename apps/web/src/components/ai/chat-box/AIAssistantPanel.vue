@@ -3,14 +3,13 @@ import type { QuickCommandRuntime } from '@/stores/quickCommands'
 import {
   Check,
   Copy,
+  Edit,
   FolderOpen,
   Image as ImageIcon,
-  MessageCircle,
   Pause,
   Plus,
   RefreshCcw,
   Send,
-  Settings,
   Trash2,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -55,7 +54,6 @@ const input = ref<string>(``)
 const inputHistory = ref<string[]>([])
 const historyIndex = ref<number | null>(null)
 
-const configVisible = ref(false)
 const loading = ref(false)
 const fetchController = ref<AbortController | null>(null)
 const copiedIndex = ref<number | null>(null)
@@ -208,11 +206,6 @@ async function deleteConversation(id: string) {
   }
 
   toast.success(`对话已删除`)
-}
-
-function handleConfigSaved() {
-  configVisible.value = false
-  scrollToBottom(true)
 }
 
 function switchToImageGenerator() {
@@ -471,6 +464,27 @@ async function sendMessage() {
 
   await streamResponse(replyMessageProxy)
 }
+
+function replaceToEditor(content: string) {
+  if (!editor.value)
+    return
+
+  const editorView = toRaw(editor.value)
+  const selection = editorView.state.selection.main
+
+  if (selection.from !== selection.to) {
+    editorView.dispatch(editorView.state.replaceSelection(content))
+    toast.success(`AI排版内容已经更新在编辑器`)
+  }
+  else {
+    editorView.dispatch({
+      changes: { from: 0, to: editorView.state.doc.length, insert: content },
+    })
+    toast.success(`AI排版内容已经更新在编辑器`)
+  }
+
+  editorView.focus()
+}
 </script>
 
 <template>
@@ -482,17 +496,6 @@ async function sendMessage() {
       <DialogHeader class="space-y-1 flex flex-col items-start">
         <div class="space-x-1 flex items-center">
           <DialogTitle>AI 对话</DialogTitle>
-
-          <Button
-            :title="configVisible ? 'AI 对话' : '配置参数'"
-            :aria-label="configVisible ? 'AI 对话' : '配置参数'"
-            variant="ghost"
-            size="icon"
-            @click="configVisible = !configVisible"
-          >
-            <MessageCircle v-if="configVisible" class="h-4 w-4" />
-            <Settings v-else class="h-4 w-4" />
-          </Button>
 
           <Button
             title="AI 文生图"
@@ -571,7 +574,6 @@ async function sendMessage() {
 
       <!-- ============ 快捷指令 ============ -->
       <div
-        v-if="!configVisible"
         class="mb-3 flex flex-wrap gap-2 overflow-x-auto pb-1"
       >
         <template v-if="quickCmdStore.commands.length">
@@ -606,16 +608,8 @@ async function sendMessage() {
         <QuickCommandManager v-model:open="cmdMgrOpen" />
       </div>
 
-      <!-- ============ 参数配置面板 ============ -->
-      <AIConfig
-        v-if="configVisible"
-        class="mb-4 w-full border rounded-md p-4"
-        @saved="handleConfigSaved"
-      />
-
       <!-- ============ 聊天内容 ============ -->
       <div
-        v-if="!configVisible"
         class="custom-scroll space-y-3 chat-container mb-4 flex-1 overflow-y-auto pr-2"
       >
         <div
@@ -675,13 +669,24 @@ async function sendMessage() {
               >
                 <RefreshCcw class="text-muted-foreground h-3 w-3" />
               </Button>
+              <Button
+                v-if="msg.role === 'assistant' && msg.done && index === messages.length - 1"
+                variant="ghost"
+                size="icon"
+                class="ml-1 h-5 w-5 p-1"
+                aria-label="一键替换到编辑区"
+                title="一键替换到编辑区"
+                @click="replaceToEditor(msg.content)"
+              >
+                <Edit class="text-muted-foreground h-3 w-3" />
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
       <!-- ============ 输入框 ============ -->
-      <div v-if="!configVisible" class="relative mt-2">
+      <div class="relative mt-2">
         <div
           class="bg-background border-border flex flex-col items-baseline gap-2 border rounded-xl px-3 py-2 pr-12 shadow-inner"
         >

@@ -1,0 +1,6 @@
+console.log('检查环境变量...')
+console.log('VITE_DEFAULT_AI_ENDPOINT:', import.meta.env.VITE_DEFAULT_AI_ENDPOINT)
+console.log('VITE_DEFAULT_AI_MODEL:', import.meta.env.VITE_DEFAULT_AI_MODEL)
+console.log('VITE_DEFAULT_AI_API_KEY:', `${import.meta.env.VITE_DEFAULT_AI_API_KEY?.substring(0, 10)}...`)
+console.log('VITE_DEFAULT_AI_TYPE:', import.meta.env.VITE_DEFAULT_AI_TYPE)
+console.log('VITE_IMAGE_HOST:', import.meta.env.VITE_IMAGE_HOST)

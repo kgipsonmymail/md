@@ -16,6 +16,16 @@ const { type, endpoint, model, apiKey, temperature, maxToken } = storeToRefs(AIC
 const loading = ref(false)
 const testResult = ref(``)
 
+/** 检测是否使用环境变量配置 */
+const hasEnvConfig = computed(() => {
+  return !!(
+    import.meta.env.VITE_DEFAULT_AI_ENDPOINT
+      && import.meta.env.VITE_DEFAULT_AI_MODEL
+      && import.meta.env.VITE_DEFAULT_AI_API_KEY
+      && import.meta.env.VITE_DEFAULT_AI_TYPE
+  )
+})
+
 /** 当前服务信息 */
 const currentService = computed(
   () => serviceOptions.find(s => s.value === type.value) || serviceOptions[0],
@@ -111,135 +121,141 @@ async function testConnection() {
       AI 配置
     </div>
 
-    <!-- 服务类型 -->
-    <div>
-      <Label class="mb-1 block text-sm font-medium">服务类型</Label>
-      <Select v-model="type">
-        <SelectTrigger class="w-full">
-          <SelectValue>
-            {{ currentService.label }}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem
-            v-for="service in serviceOptions"
-            :key="service.value"
-            :value="service.value"
-          >
-            {{ service.label }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
+    <div v-if="hasEnvConfig" class="text-muted-foreground text-sm">
+      已使用系统默认配置
     </div>
 
-    <!-- API 端点 -->
-    <div v-if="type !== DEFAULT_SERVICE_TYPE">
-      <Label class="mb-1 block text-sm font-medium">API 端点</Label>
-      <Input
-        v-model="endpoint"
-        placeholder="输入 API 端点 URL"
-        class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
-      />
-    </div>
+    <template v-else>
+      <!-- 服务类型 -->
+      <div>
+        <Label class="mb-1 block text-sm font-medium">服务类型</Label>
+        <Select v-model="type">
+          <SelectTrigger class="w-full">
+            <SelectValue>
+              {{ currentService.label }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="service in serviceOptions"
+              :key="service.value"
+              :value="service.value"
+            >
+              {{ service.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-    <!-- API 密钥，仅非 default 显示 -->
-    <div v-if="type !== DEFAULT_SERVICE_TYPE">
-      <Label class="mb-1 block text-sm font-medium">API 密钥</Label>
-      <PasswordInput
-        v-model="apiKey"
-        placeholder="sk-..."
-        class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
-      />
-    </div>
+      <!-- API 端点 -->
+      <div v-if="type !== DEFAULT_SERVICE_TYPE">
+        <Label class="mb-1 block text-sm font-medium">API 端点</Label>
+        <Input
+          v-model="endpoint"
+          placeholder="输入 API 端点 URL"
+          class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
+        />
+      </div>
 
-    <!-- 模型名称 -->
-    <div>
-      <Label class="mb-1 block text-sm font-medium">模型名称</Label>
-      <Select v-if="currentService.models.length > 0" v-model="model">
-        <SelectTrigger class="w-full">
-          <SelectValue>
-            {{ model || '请选择模型' }}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem
-            v-for="_model in currentService.models"
-            :key="_model"
-            :value="_model"
-          >
-            {{ _model }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <Input
-        v-else
-        v-model="model"
-        placeholder="输入模型名称"
-        class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
-      />
-    </div>
+      <!-- API 密钥，仅非 default 显示 -->
+      <div v-if="type !== DEFAULT_SERVICE_TYPE">
+        <Label class="mb-1 block text-sm font-medium">API 密钥</Label>
+        <PasswordInput
+          v-model="apiKey"
+          placeholder="sk-..."
+          class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
+        />
+      </div>
 
-    <!-- 温度 temperature -->
-    <div>
-      <Label class="mb-1 flex items-center gap-1 text-sm font-medium">
-        温度
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Info class="text-gray-500" :size="16" />
-            </TooltipTrigger>
-            <TooltipContent side="top" class="z-[250]">
-              <div>控制输出的随机性：较小值使输出更确定，较大值使其更随机。</div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </Label>
-      <Input
-        v-model.number="temperature"
-        type="number"
-        step="0.1"
-        min="0"
-        max="2"
-        placeholder="0 ~ 2，默认 1"
-        class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
-      />
-    </div>
+      <!-- 模型名称 -->
+      <div>
+        <Label class="mb-1 block text-sm font-medium">模型名称</Label>
+        <Select v-if="currentService.models.length > 0" v-model="model">
+          <SelectTrigger class="w-full">
+            <SelectValue>
+              {{ model || '请选择模型' }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="_model in currentService.models"
+              :key="_model"
+              :value="_model"
+            >
+              {{ _model }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          v-else
+          v-model="model"
+          placeholder="输入模型名称"
+          class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
+        />
+      </div>
 
-    <!-- 最大 Token 数 -->
-    <div>
-      <Label class="mb-1 block text-sm font-medium">最大 Token 数</Label>
-      <Input
-        v-model.number="maxToken"
-        type="number"
-        min="1"
-        max="32768"
-        placeholder="比如 1024"
-        class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
-      />
-    </div>
+      <!-- 温度 temperature -->
+      <div>
+        <Label class="mb-1 flex items-center gap-1 text-sm font-medium">
+          温度
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Info class="text-gray-500" :size="16" />
+              </TooltipTrigger>
+              <TooltipContent side="top" class="z-[250]">
+                <div>控制输出的随机性：较小值使输出更确定，较大值使其更随机。</div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </Label>
+        <Input
+          v-model.number="temperature"
+          type="number"
+          step="0.1"
+          min="0"
+          max="2"
+          placeholder="0 ~ 2，默认 1"
+          class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
+        />
+      </div>
 
-    <!-- 操作按钮区域 -->
-    <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-      <Button size="sm" @click="saveConfig">
-        保存
-      </Button>
-      <Button size="sm" variant="ghost" @click="clearConfig">
-        清空
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        :disabled="loading"
-        @click="testConnection"
-      >
-        {{ loading ? '测试中...' : '测试连接' }}
-      </Button>
-    </div>
+      <!-- 最大 Token 数 -->
+      <div>
+        <Label class="mb-1 block text-sm font-medium">最大 Token 数</Label>
+        <Input
+          v-model.number="maxToken"
+          type="number"
+          min="1"
+          max="32768"
+          placeholder="比如 1024"
+          class="focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
+        />
+      </div>
 
-    <!-- 测试结果显示 -->
-    <div v-if="testResult" class="mt-1 text-xs text-gray-500">
-      {{ testResult }}
-    </div>
+      <!-- 操作按钮区域 -->
+      <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+        <Button size="sm" @click="saveConfig">
+          保存
+        </Button>
+        <Button size="sm" variant="ghost" @click="clearConfig">
+          清空
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          :disabled="loading"
+          @click="testConnection"
+        >
+          {{ loading ? '测试中...' : '测试连接' }}
+        </Button>
+      </div>
+
+      <!-- 测试结果显示 -->
+      <div v-if="testResult" class="mt-1 text-xs text-gray-500">
+        {{ testResult }}
+      </div>
+    </template>
   </div>
 </template>
 
