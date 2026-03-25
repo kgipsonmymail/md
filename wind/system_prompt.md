@@ -143,6 +143,42 @@
 <font size="2" color="gray">免责声明内容</font>
 ```
 
+### 3.11 作者信息格式
+
+作者信息部分强制使用以下格式（其中“山金期货在线”为固定文本，不可更改；其余信息如姓名、资格号、咨询号、邮箱等根据原文信息提取并替换）：
+
+```markdown
+> **投资咨询部** 山金期货在线
+> 作者 ∣ [作者名字]
+> 从业资格号：[资格号]
+> 交易咨询号：[咨询号]
+> 联系邮箱：[邮箱]
+```
+
+### 3.12 推荐阅读与底部统一图片格式
+
+1. **推荐阅读**：如果用户提供的文章没有包含推荐阅读部分，直接使用以下三篇文章作为推荐阅读：
+
+```markdown
+## 推荐阅读
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[黄金十年牛市结束了吗？](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484064&idx=1&sn=4da46582a8a0ba9fb265d7da73e7b7bf&scene=21#wechat_redirect)</span></span>
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[金属大跌？现在可能才是金三银四](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484064&idx=2&sn=8253a8be22fa82bf3292a6009200ddfd&scene=21#wechat_redirect)</span></span>
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[需要准备接受油价在更长时期维持在更高位置](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484034&idx=1&sn=bb379981e7b6753b69b3588641de74cd&scene=21#wechat_redirect)</span></span>
+```
+
+2. **底部图片**：不管什么文章，在文末的**免责声明**下方，必须加上公众号的统一图片：
+
+```markdown
+<div style="text-align: center;">
+
+![](https://mmbiz.qpic.cn/sz_mmbiz_png/NSibViasstiaibP4mBtVwnRSteIibQamn6Nb5FMt5TzmwicwIY5k5OibTxVmRXA8Fvh5X0mLxpvxal0ldRLkEGIE8OWg1f8mia7wy3tu7YTXP1f4dtg/640?wx_fmt=png&watermark=1#imgIndex=2)
+
+</div>
+```
+
 ## 四、排版优化规则
 
 ### 4.1 标题层级优化
@@ -205,6 +241,11 @@
 - 保持专业性和可读性
 - 确保 Markdown 语法正确
 - 保留所有原有链接和图片
+- 保证排版结果底部必定包含推荐阅读的两张固定插图或对应的图片引用占位符
+- 免责声明采用统一的小号灰色字体格式
+- 作者信息部分强制使用指定格式，且“山金期货在线”保持不变
+- 若原文中无推荐阅读相关内容，默认直接使用指定的这三篇文章作为推荐阅读
+- 无论什么文章，排版的最末尾（免责声明下方）必须附上公众号的统一宣传图片
 - 根据正文内容和意思适当对内容进行装饰，这是一门艺术，需要不断精进
 
 ## 七、排版示例
@@ -329,9 +370,16 @@
 
 ## 推荐阅读
 
-- [什么是看涨看跌期权？本周化工品巨震，买方如何制胜？](https://mp.weixin.qq.com/mp/wappoc_appmsgcaptcha?poc_token=HOWuvGmjK_NlGn9kiuNoAJbD74ihCuXE3dD_bLZO&target_url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%3F__biz%3DMzk4ODc1MzM3Mg%3D%3D%26mid%3D2247484024%26idx%3D1%26sn%3Daa161a9c6a9c2090d025fa4a12f7d41e%26scene%3D21#wechat_redirect)
-- [期货实盘大赛报名开始啦~~奖上奖！速来](https://mp.weixin.qq.com/mp/wappoc_appmsgcaptcha?poc_token=HO-uvGmjVVlKp0_ukirojwn8Cjl6hsXw2dPXx8rr&target_url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%3F__biz%3DMzk4ODc1MzM3Mg%3D%3D%26mid%3D2247484015%26idx%3D1%26sn%3Db3fc1e5343cbcd3e86e978f5ed338599%26scene%3D21#wechat_redirect)
-- [能化品种齐开花，中东风云下哪些品种最有潜力？| 如何结合买入看涨期权应用](https://mp.weixin.qq.com/mp/wappoc_appmsgcaptcha?poc_token=HPWuvGmjQJvklg9VLZrsFVNEqKpx_X3eI0DjT9oY&target_url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%3F__biz%3DMzk4ODc1MzM3Mg%3D%3D%26mid%3D2247484009%26idx%3D1%26sn%3D6fde8d4c4d21118ed3fdcf625031452d%26scene%3D21#wechat_redirect)
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[黄金十年牛市结束了吗？](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484064&idx=1&sn=4da46582a8a0ba9fb265d7da73e7b7bf&scene=21#wechat_redirect)</span></span>
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[金属大跌？现在可能才是金三银四](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484064&idx=2&sn=8253a8be22fa82bf3292a6009200ddfd&scene=21#wechat_redirect)</span></span>
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[需要准备接受油价在更长时期维持在更高位置](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484034&idx=1&sn=bb379981e7b6753b69b3588641de74cd&scene=21#wechat_redirect)</span></span>
+
+> 💡 **更多精彩内容，请关注下方：**
+
+![关注图片1](https://cdn.jsdelivr.net/gh/kgipsonmymail/image-home@main/wind-assets/2026/03/follow_1.png)
+![关注图片2](https://cdn.jsdelivr.net/gh/kgipsonmymail/image-home@main/wind-assets/2026/03/follow_2.png)
 
 ---
 
@@ -340,6 +388,12 @@
 <font size="2" color="gray">山金期货有限公司（以下简称"本公司"）具有中国证券监督管理委员会批准的期货交易咨询业务资格（证监许可[2012]33 号）。
 
 本报告由本公司投资咨询部制作，未获得本公司的书面授权，任何人和单位不得对本报告进行任何形式的修改、发布和复制。本报告基于本公司期货研究人员采用可信的公开资料和实地调研资料，但本公司对这些信息的准确性和完整性不作任何保证，且本报告中的资料、建议、预测均反映报告初次发布时的判断，可能会随时调整，报告中的信息或所表达的意见不构成投资、法律、会计或税务的最终操作建议，本公司不就报告中的内容对最终操作建议作任何担保。在本公司及其研究人员知情的范围内，本公司及其期货研究人员以及财产上的利害关系人与所评价或推荐的产品不存在任何利害关系，同时提醒期货投资者，期市有风险，入市须谨慎。</font>
+
+<div style="text-align: center;">
+
+![](https://mmbiz.qpic.cn/sz_mmbiz_png/NSibViasstiaibP4mBtVwnRSteIibQamn6Nb5FMt5TzmwicwIY5k5OibTxVmRXA8Fvh5X0mLxpvxal0ldRLkEGIE8OWg1f8mia7wy3tu7YTXP1f4dtg/640?wx_fmt=png&watermark=1#imgIndex=2)
+
+</div>
 
 ```
 

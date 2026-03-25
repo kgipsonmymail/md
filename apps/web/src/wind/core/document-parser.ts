@@ -29,8 +29,7 @@ export class DocumentParser {
    */
   async parseDocx(file: File): Promise<ParsedDocument> {
     // 动态导入 mammoth（需要在项目中安装）
-    // @ts-expect-error - mammoth 可能未安装
-    const mammoth = await import('mammoth')
+    const mammoth = await import('mammoth') as any
 
     const arrayBuffer = await file.arrayBuffer()
 

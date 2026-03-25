@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bot, Image as ImageIcon, Settings2, Wand2 } from 'lucide-vue-next'
+import { Bot, Image as ImageIcon, Settings2, Wand2, FileEdit } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { useUIStore } from '@/stores/ui'
 import AIAssistantPanel from './chat-box/AIAssistantPanel.vue'
@@ -13,7 +13,7 @@ defineProps<{
 
 const uiStore = useUIStore()
 const { aiDialogVisible, aiImageDialogVisible } = storeToRefs(uiStore)
-const { toggleAIDialog, toggleAIImageDialog } = uiStore
+const { toggleAIDialog, toggleAIImageDialog, toggleShowDraftEditorDialog } = uiStore
 
 const editorStore = useEditorStore()
 const { editor } = storeToRefs(editorStore)
@@ -114,6 +114,11 @@ function openAIImageGenerator() {
 // 打开AI工具箱
 function openAIToolBox() {
   toolBoxVisible.value = true
+}
+
+// 打开草稿加工区
+function openDraftEditor() {
+  toggleShowDraftEditorDialog(true)
 }
 
 // 监听编辑区点击，自动收起工具栏
@@ -279,6 +284,27 @@ onMounted(() => {
           <!-- 标签 -->
           <span class="text-[9px] text-gray-500 dark:text-gray-400 font-medium text-center leading-tight">
             工具箱
+          </span>
+        </div>
+
+        <!-- 分割线 -->
+        <div v-if="isExpanded" class="mx-1.5">
+          <div class="h-px bg-gray-200/50 dark:bg-gray-700/50" />
+        </div>
+
+        <!-- 草稿加工区按钮 -->
+        <div v-if="isExpanded" class="flex flex-col items-center gap-1 px-1">
+          <button
+            class="group relative w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center utools-ai-button"
+            title="图文草稿区"
+            @click="openDraftEditor"
+          >
+            <FileEdit class="h-4 w-4" />
+          </button>
+
+          <!-- 标签 -->
+          <span class="text-[9px] text-gray-500 dark:text-gray-400 font-medium text-center leading-tight">
+            草稿区
           </span>
         </div>
       </div>

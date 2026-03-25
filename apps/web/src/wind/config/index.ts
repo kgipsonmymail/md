@@ -12,7 +12,7 @@ export interface WindConfig {
 /**
  * 从环境变量读取默认配置
  */
-const ENV_IMAGE_HOST = import.meta.env.VITE_IMAGE_HOST || ``
+const ENV_IMAGE_HOST: string = ''
 
 let envGitHubConfig: GitHubConfig = {
   token: '',
@@ -43,11 +43,11 @@ if (ENV_IMAGE_HOST) {
 export const defaultWindConfig: WindConfig = {
   github: envGitHubConfig,
   ai: {
-    provider: import.meta.env.VITE_DEFAULT_AI_PROVIDER || 'openai',
-    apiEndpoint: import.meta.env.VITE_DEFAULT_AI_ENDPOINT || 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-    apiKey: import.meta.env.VITE_DEFAULT_AI_API_KEY || '',
-    difyApiKey: import.meta.env.VITE_DEFAULT_DIFY_API_KEY || 'app-jI95cc5KEelAffj9KbsgZbiK',
-    model: import.meta.env.VITE_DEFAULT_AI_MODEL || 'glm-4-flash-250414',
+    provider: 'openai',
+    apiEndpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    apiKey: '',
+    difyApiKey: '',
+    model: 'glm-4.6v',
     temperature: 0.7,
     prompt: `你是一个专业的公众号文章排版助手。请根据以下 Markdown 语法规则，对文章进行排版优化：
 

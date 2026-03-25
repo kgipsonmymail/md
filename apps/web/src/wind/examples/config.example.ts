@@ -32,6 +32,11 @@ export const windConfig: WindConfig = {
 
   // AI 排版配置
   ai: {
+    // 提供方
+    provider: 'openai',
+    // Dify API Key
+    difyApiKey: '',
+
     // API 地址
     // OpenAI: https://api.openai.com/v1/chat/completions
     // Azure: https://your-resource.openai.azure.com/openai/deployments/your-deployment/chat/completions?api-version=2023-05-15

@@ -12,6 +12,7 @@ import FolderSourcePanel from '@/components/editor/FolderSourcePanel.vue'
 import ImportDocxDialog from '@/components/editor/ImportDocxDialog.vue'
 import ImportHtmlDialog from '@/components/editor/ImportHtmlDialog.vue'
 import ImportMarkdownDialog from '@/components/editor/ImportMarkdownDialog.vue'
+import DraftEditorDialog from '@/wind/components/DraftEditorDialog.vue'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -879,6 +880,8 @@ onUnmounted(() => {
       <ImportDocxDialog />
 
       <ImportHtmlDialog />
+
+      <DraftEditorDialog />
 
       <TemplateDialog />
 

@@ -134,6 +134,7 @@ export class AIFormatter {
         response_mode: 'blocking',
         conversation_id: '',
         user: 'wind-formatter',
+        files: [],
       }),
     })
 
@@ -159,7 +160,7 @@ export class AIFormatter {
     // 替换 base64 图片为简单的占位符
     return content.replace(
       /!\[([^\]]*)\]\(data:image\/[^;]+;base64,[^)]+\)/g,
-      (match, alt) => `![${alt || '图片'}](IMAGE_PLACEHOLDER)`,
+      (_, alt) => `![${alt || '图片'}](IMAGE_PLACEHOLDER)`,
     )
   }
 
@@ -200,7 +201,7 @@ export class AIFormatter {
   /**
    * 检测变更类型
    */
-  private detectChangeType(original: string, formatted: string): FormatChange['type'] | null {
+  private detectChangeType(_original: string, formatted: string): FormatChange['type'] | null {
     if (/^#{1,6}\s/.test(formatted))
       return 'heading'
     if (/^[-*+]\s/.test(formatted) || /^\d+\.\s/.test(formatted))

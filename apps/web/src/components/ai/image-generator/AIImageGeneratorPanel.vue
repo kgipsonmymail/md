@@ -154,10 +154,10 @@ onMounted(async () => {
   else {
     // 补齐较短的数组
     if (promptsLength < imagesLength) {
-      imagePrompts.value = [...imagePrompts.value, ...Array.from({ length: imagesLength - promptsLength }).fill(``)]
+      imagePrompts.value = [...imagePrompts.value, ...Array.from<string>({ length: imagesLength - promptsLength }).fill('')]
     }
     if (timestampsLength < imagesLength) {
-      imageTimestamps.value = [...imageTimestamps.value, ...Array.from({ length: imagesLength - timestampsLength }).fill(Date.now())]
+      imageTimestamps.value = [...imageTimestamps.value, ...Array.from<number>({ length: imagesLength - timestampsLength }).fill(Date.now())]
     }
   }
 

@@ -18,7 +18,7 @@ const isUTools = process.env.SERVER_ENV === `UTOOLS`
 const isCfWorkers = process.env.CF_WORKERS === `1`
 const isCfPages = process.env.CF_PAGES === `1`
 
-const base = isNetlify || isCfWorkers || isCfPages ? `/` : isUTools ? `./` : `/md/`
+const base = './' // Changed to always use relative path to prevent 404s on generic static hosting
 
 const PKG_NAME_SPECIAL_CHARS = /[^\w-]/g
 

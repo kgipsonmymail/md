@@ -77,6 +77,10 @@ export const useUIStore = defineStore(`ui`, () => {
   const isShowImportHtmlDialog = ref(false)
   const toggleShowImportHtmlDialog = useToggle(isShowImportHtmlDialog)
 
+  // 是否展示推文草稿输入对话框
+  const isShowDraftEditorDialog = ref(false)
+  const toggleShowDraftEditorDialog = useToggle(isShowDraftEditorDialog)
+
   // 是否展示模板管理对话框
   const isShowTemplateDialog = ref(false)
   const toggleShowTemplateDialog = useToggle(isShowTemplateDialog)
@@ -152,6 +156,8 @@ export const useUIStore = defineStore(`ui`, () => {
     toggleShowImportDocxDialog,
     isShowImportHtmlDialog,
     toggleShowImportHtmlDialog,
+    isShowDraftEditorDialog,
+    toggleShowDraftEditorDialog,
     isShowTemplateDialog,
     toggleShowTemplateDialog,
     isOpenConfirmDialog,

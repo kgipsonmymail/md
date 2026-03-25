@@ -2,7 +2,40 @@
 
 
 # 0325
-@  这里面的md的AI优化和html解析已经完成，接下来需要完善
+ok，这个项目调整一下：
+1. 这个前端在执行渲染与解析层面的作用已经非常好了，在这个基础上继续改进会吃力不讨好。新推文书写与草稿管理系统可以单独开发一个新的页面。没必要把所有功能都合一
+2. 你再调整一下开发计划，把当前需要的功能列出来就行，我可能会换个仓库来存储新的项目。到时候新系统在需要预览效果的时候直接用这个前端的网站来呈现就行。
+
+
+帮我优化一下这份提示词：
+有些是改参考模板的，有些要直接改提示词。
+1. 作者信息部分强制用这个格式：
+## 作者信息
+
+> **投资咨询部** 山金期货在线
+> 作者 ∣ 曹有明
+> 从业资格号：F3038998
+> 交易咨询号：Z0013152
+> 联系邮箱：caoyouming@sd-gold.com
+其中，作者名字、资格号、咨询号、邮箱会变，但是山金期货在线，是不会变的，因为这个公众号就叫山金期货在线。
+2. 文末，免责声明下面补充一个图片，是公众号的每篇推文统一的图片，不管什么文章，都加上：
+<div style="text-align: center;">
+
+![](https://mmbiz.qpic.cn/sz_mmbiz_png/NSibViasstiaibP4mBtVwnRSteIibQamn6Nb5FMt5TzmwicwIY5k5OibTxVmRXA8Fvh5X0mLxpvxal0ldRLkEGIE8OWg1f8mia7wy3tu7YTXP1f4dtg/640?wx_fmt=png&watermark=1#imgIndex=2)
+
+</div>
+
+推荐阅读目前使用（这三篇文章，在用户提供的文章没有推荐阅读的情况下，直接使用）：
+## 推荐阅读
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[黄金十年牛市结束了吗？](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484064&idx=1&sn=4da46582a8a0ba9fb265d7da73e7b7bf&scene=21#wechat_redirect)</span></span>
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[金属大跌？现在可能才是金三银四](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484064&idx=2&sn=8253a8be22fa82bf3292a6009200ddfd&scene=21#wechat_redirect)</span></span>
+
+<span style="font-size: 16px;"><span style="color: rgba(0, 0, 0, 0.9);">[需要准备接受油价在更长时期维持在更高位置](https://mp.weixin.qq.com/s?__biz=Mzk4ODc1MzM3Mg==&mid=2247484034&idx=1&sn=bb379981e7b6753b69b3588641de74cd&scene=21#wechat_redirect)</span></span>
+
+
+
 
 新系统：
 现在有一个卡点：
