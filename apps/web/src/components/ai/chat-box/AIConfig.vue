@@ -3,6 +3,7 @@ import { serviceOptions } from '@md/shared/configs'
 import { DEFAULT_SERVICE_TYPE } from '@md/shared/constants'
 import { Info } from 'lucide-vue-next'
 import { PasswordInput } from '@/components/ui/password-input'
+import { Switch } from '@/components/ui/switch'
 import useAIConfigStore from '@/stores/aiConfig'
 
 /* -------------------------- 基础数据 -------------------------- */
@@ -10,7 +11,7 @@ import useAIConfigStore from '@/stores/aiConfig'
 const emit = defineEmits([`saved`])
 
 const AIConfigStore = useAIConfigStore()
-const { type, endpoint, model, apiKey, temperature, maxToken } = storeToRefs(AIConfigStore)
+const { useCustom, type, endpoint, model, apiKey, temperature, maxToken } = storeToRefs(AIConfigStore)
 
 /** UI 状态 */
 const loading = ref(false)
@@ -117,15 +118,19 @@ async function testConnection() {
 
 <template>
   <div class="custom-scroll space-y-4 max-h-[calc(100dvh-10rem)] overflow-y-auto pr-1 text-xs sm:max-h-none sm:text-sm">
-    <div class="font-medium">
-      AI 配置
+    <div class="flex items-center justify-between font-medium">
+      <span>AI 配置</span>
+      <div v-if="hasEnvConfig" class="flex items-center gap-2">
+        <span class="text-xs text-muted-foreground">{{ useCustom ? '自定义模式' : '系统默认' }}</span>
+        <Switch v-model:checked="useCustom" />
+      </div>
     </div>
 
-    <div v-if="hasEnvConfig" class="text-muted-foreground text-sm">
+    <div v-if="hasEnvConfig && !useCustom" class="text-muted-foreground text-sm">
       已使用系统默认配置
     </div>
 
-    <template v-else>
+    <template v-if="useCustom || !hasEnvConfig">
       <!-- 服务类型 -->
       <div>
         <Label class="mb-1 block text-sm font-medium">服务类型</Label>

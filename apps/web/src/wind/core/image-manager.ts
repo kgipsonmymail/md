@@ -77,7 +77,7 @@ export class ImageManager {
       // 3. PLACEHOLDER_xxx
 
       // 替换 base64 图片 - 使用位置精确匹配
-      const base64Regex = /!\[([^\]]*)\]\((data:image\/[^;]+;base64,[^)]+)\)/
+      const base64Regex = /!\[([^\]]*)\]\((data:image\/[^;]+;base64,[^)]+)\)/g
       let matchIndex = 0
       while (true) {
         const match = base64Regex.exec(result)
@@ -95,7 +95,7 @@ export class ImageManager {
         }
         matchIndex++
         // 防止无限循环
-        if (matchIndex > 100)
+        if (matchIndex > 1000)
           break
       }
 

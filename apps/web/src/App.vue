@@ -4,13 +4,9 @@ import { onMounted, ref } from 'vue'
 import { Toaster } from '@/components/ui/sonner'
 import { useUIStore } from '@/stores/ui'
 import CodemirrorEditor from '@/views/CodemirrorEditor.vue'
-import WindProcessor from '@/wind/components/WindProcessor.vue'
 
 const uiStore = useUIStore()
 const { isDark } = storeToRefs(uiStore)
-
-// Wind 中间件状态
-const showWind = ref(false)
 
 const isUtools = ref(false)
 
@@ -44,22 +40,6 @@ onMounted(() => {
     position="top-center"
     :theme="isDark ? 'dark' : 'light'"
   />
-
-  <!-- Wind 中间件测试按钮 -->
-  <button
-    class="wind-test-button"
-    :title="showWind ? '隐藏 Wind 处理器' : '显示 Wind 处理器'"
-    @click="showWind = !showWind"
-  >
-    {{ showWind ? '✕' : '🎨' }}
-  </button>
-
-  <!-- Wind 处理器侧边栏 -->
-  <transition name="wind-slide">
-    <div v-if="showWind" class="wind-sidebar">
-      <WindProcessor />
-    </div>
-  </transition>
 </template>
 
 <style lang="less">
@@ -148,65 +128,5 @@ body {
 }
 .current-match {
   background-color: #ff5722; /* 当前匹配项更鲜艳的颜色 */
-}
-
-/* Wind 中间件样式 */
-.wind-test-button {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 9999;
-  width: 56px;
-  height: 56px;
-  padding: 0;
-  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
-  font-size: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.wind-test-button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.6);
-}
-
-.wind-test-button:active {
-  transform: scale(0.95);
-}
-
-.wind-sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 600px;
-  height: 100vh;
-  background: white;
-  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.15);
-  z-index: 9998;
-  overflow-y: auto;
-}
-
-/* 滑入动画 */
-.wind-slide-enter-active,
-.wind-slide-leave-active {
-  transition: transform 0.3s ease;
-}
-
-.wind-slide-enter-from,
-.wind-slide-leave-to {
-  transform: translateX(100%);
-}
-
-/* 暗色模式适配 */
-.dark .wind-sidebar {
-  background: #1e1e1e;
-  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.5);
 }
 </style>

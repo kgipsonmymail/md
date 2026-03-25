@@ -3,9 +3,26 @@
  * 支持 .docx 文件解析，提取文本和图片
  */
 
-import type { ImageAsset, ParsedDocument } from '../types'
+import type { HtmlParseOptions, ImageAsset, ParsedDocument } from '../types'
+import { HtmlParser } from './html-parser'
 
 export class DocumentParser {
+  private htmlParser: HtmlParser
+
+  constructor() {
+    this.htmlParser = new HtmlParser()
+  }
+
+  /**
+   * 解析 HTML 字符串
+   */
+  async parseHtml(html: string, options?: HtmlParseOptions): Promise<ParsedDocument> {
+    if (options) {
+      this.htmlParser = new HtmlParser(options)
+    }
+    return this.htmlParser.parseFromString(html)
+  }
+
   /**
    * 解析 .docx 文件
    * 注意：需要安装 mammoth 库

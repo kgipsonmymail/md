@@ -23,9 +23,11 @@ const base = isNetlify || isCfWorkers || isCfPages ? `/` : isUTools ? `./` : `/m
 const PKG_NAME_SPECIAL_CHARS = /[^\w-]/g
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd())
+  const envDir = path.resolve(__dirname, '..')
+  const env = loadEnv(mode, envDir)
 
   return {
+    envDir,
     base,
     define: { process },
     envPrefix: [`VITE_`, `CF_`],

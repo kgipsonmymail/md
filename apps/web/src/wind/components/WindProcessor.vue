@@ -10,7 +10,7 @@ const editorStore = useEditorStore()
 const { processing, progress, currentStep, result, uploadedImages, errors, configValid } = storeToRefs(windStore)
 
 // UI 状态
-const mode = ref<'docx' | 'text' | 'format'>('text')
+const mode = ref<'docx' | 'text' | 'format' | 'html'>('text')
 const showConfirmDialog = ref(false)
 const aiProvider = ref<'openai' | 'dify'>('openai')
 
@@ -29,6 +29,7 @@ const options = ref<ProcessOptions>({
 // 引用
 const docxInput = ref<HTMLInputElement>()
 const imageInput = ref<HTMLInputElement>()
+const htmlInput = ref<HTMLInputElement>()
 
 // 计算属性
 const canProcess = computed(() => {
@@ -38,7 +39,8 @@ const canProcess = computed(() => {
     return docxFile.value !== null
   if (mode.value === 'text')
     return textContent.value.trim().length > 0
-  if (mode.value === 'format')
+  return textContent.value.trim().length > 0
+  if (mode.value === 'html')
     return textContent.value.trim().length > 0
   return false
 })
@@ -58,6 +60,21 @@ function handleDocxSelect(e: Event) {
   const target = e.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
     docxFile.value = target.files[0]
+  }
+}
+
+// 处理 HTML 文件
+function handleHtmlSelect(e: Event) {
+  const target = e.target as HTMLInputElement
+  if (target.files && target.files.length > 0) {
+    const file = target.files[0]
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      if (e.target?.result && typeof e.target.result === 'string') {
+        textContent.value = e.target.result
+      }
+    }
+    reader.readAsText(file)
   }
 }
 
@@ -95,6 +112,9 @@ async function handleProcess() {
     }
     else if (mode.value === 'text') {
       await windStore.processTextWithImages(textContent.value, imageFiles.value, options.value)
+    }
+    else if (mode.value === 'html') {
+      await windStore.processHtml(textContent.value, options.value)
     }
     else if (mode.value === 'format') {
       await windStore.formatOnly(textContent.value)
@@ -162,6 +182,12 @@ function replaceToEditor() {
           文本 + 图片
         </button>
         <button
+          :class="{ active: mode === 'html' }"
+          @click="mode = 'html'"
+        >
+          导入 HTML
+        </button>
+        <button
           :class="{ active: mode === 'format' }"
           @click="mode = 'format'"
         >
@@ -179,7 +205,7 @@ function replaceToEditor() {
             style="display: none"
             @change="handleDocxSelect"
           >
-          <div v-if="!docxFile" class="upload-placeholder" @click="$refs.docxInput.click()">
+          <div v-if="!docxFile" class="upload-placeholder" @click="docxInput?.click()">
             <div class="upload-icon">
               📄
             </div>
@@ -212,7 +238,7 @@ function replaceToEditor() {
             style="display: none"
             @change="handleImageSelect"
           >
-          <button class="btn-upload" @click="$refs.imageInput.click()">
+          <button class="btn-upload" @click="imageInput?.click()">
             选择图片
           </button>
           <div v-if="imageFiles.length > 0" class="image-list">
@@ -224,6 +250,32 @@ function replaceToEditor() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 导入 HTML 模式 -->
+      <div v-if="mode === 'html'" class="input-section">
+        <div class="text-input">
+          <textarea
+            v-model="textContent"
+            placeholder="粘贴 HTML 源码..."
+            rows="10"
+          />
+        </div>
+        <div class="file-upload mt-3">
+          <input
+            ref="htmlInput"
+            type="file"
+            accept=".html,.htm"
+            style="display: none"
+            @change="handleHtmlSelect"
+          >
+          <button class="btn-upload" @click="htmlInput?.click()">
+            上传 .html 文件
+          </button>
+          <span v-if="textContent.length > 0" style="margin-left: 10px; color: #4caf50; font-size: 14px;">
+            ✓ 已加载内容 ({{ textContent.length }} bytes)
+          </span>
         </div>
       </div>
 
@@ -356,6 +408,10 @@ function replaceToEditor() {
   display: flex;
   flex-direction: column;
   background: #f5f5f5;
+}
+
+.mt-3 {
+  margin-top: 12px;
 }
 
 .processor-header {

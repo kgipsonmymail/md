@@ -4,7 +4,7 @@
  */
 
 import type { GitHubImageHost } from '../services/github-image-host'
-import type { ProcessOptions, ProcessResult } from '../types'
+import type { HtmlParseOptions, ProcessOptions, ProcessResult } from '../types'
 import type { AIFormatter } from './ai-formatter'
 import { DocumentParser } from './document-parser'
 import { ImageManager } from './image-manager'
@@ -24,6 +24,60 @@ export class WindProcessor {
   }
 
   /**
+   * 处理 HTML 字符串
+   */
+  async processHtml(
+    html: string,
+    options: ProcessOptions & { htmlOptions?: HtmlParseOptions },
+  ): Promise<ProcessResult> {
+    try {
+      console.log('📄 开始解析 HTML...')
+
+      // 1. 解析 HTML
+      const parsed = await this.parser.parseHtml(html, options.htmlOptions)
+      console.log(`✅ HTML 解析完成，提取到 ${parsed.images.length} 张图片`)
+
+      // 2. 上传图片
+      let uploadResults: any[] = []
+      if (options.uploadImages && parsed.images.length > 0) {
+        console.log('📤 开始上传图片...')
+        const results = await this.imageManager.uploadImages(parsed.images)
+        uploadResults = Array.from(results.values())
+        console.log(`✅ 图片上传完成，共 ${uploadResults.length} 张`)
+
+        // 替换图片 URL
+        parsed.content = this.imageManager.replaceImageUrls(parsed.content, parsed.images)
+      }
+
+      // 3. AI 排版
+      let finalMarkdown = parsed.content
+      if (options.formatContent && this.aiFormatter) {
+        console.log('🤖 开始 AI 排版...')
+        const formatted = await this.aiFormatter.format(parsed.content)
+        finalMarkdown = formatted.markdown
+        console.log(`✅ AI 排版完成，应用了 ${formatted.changes.length} 处修改`)
+      }
+
+      return {
+        success: true,
+        markdown: finalMarkdown,
+        html: '', // 由外部渲染器生成
+        images: uploadResults,
+      }
+    }
+    catch (error) {
+      console.error('❌ 处理 HTML 失败:', error)
+      return {
+        success: false,
+        markdown: '',
+        html: '',
+        images: [],
+        errors: [(error as Error).message],
+      }
+    }
+  }
+
+  /**
    * 处理 .docx 文件
    */
   async processDocx(file: File, options: ProcessOptions): Promise<ProcessResult> {
@@ -34,7 +88,7 @@ export class WindProcessor {
       console.log(`✅ 文档解析完成，提取到 ${parsed.images.length} 张图片`)
 
       // 2. 上传图片
-      let uploadResults = []
+      let uploadResults: any[] = []
       if (options.uploadImages && parsed.images.length > 0) {
         console.log('📤 开始上传图片...')
         const results = await this.imageManager.uploadImages(parsed.images)
@@ -100,7 +154,7 @@ export class WindProcessor {
       }
 
       // 4. 上传图片
-      let uploadResults = []
+      let uploadResults: any[] = []
       if (options.uploadImages && parsed.images.length > 0) {
         console.log('📤 开始上传图片...')
         const results = await this.imageManager.uploadImages(parsed.images)

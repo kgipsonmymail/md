@@ -242,6 +242,7 @@ export const serviceOptions: ServiceOption[] = [
       `glm-4.5-airx`,
       `glm-4-long`,
       `glm-4.7-flash`,
+      `glm-4.6v`,
       `glm-4-flash-250414`,
       `glm-4-flashx-250414`,
     ],

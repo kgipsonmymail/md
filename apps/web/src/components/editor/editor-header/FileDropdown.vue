@@ -19,7 +19,7 @@ const exportStore = useExportStore()
 const uiStore = useUIStore()
 
 const { isOpenPostSlider, isOpenFolderPanel } = storeToRefs(uiStore)
-const { toggleShowTemplateDialog, toggleShowImportMdDialog } = uiStore
+const { toggleShowTemplateDialog, toggleShowImportMdDialog, toggleShowImportDocxDialog, toggleShowImportHtmlDialog } = uiStore
 
 function openEditorStateDialog() {
   emit(`openEditorState`)
@@ -76,6 +76,14 @@ function exportEditorContent2PDF() {
           <MenubarItem @click="toggleShowImportMdDialog(true)">
             <FileText class="mr-2 size-4" />
             导入 Markdown
+          </MenubarItem>
+          <MenubarItem @click="toggleShowImportDocxDialog(true)">
+            <FileText class="mr-2 size-4" />
+            导入 Word (.docx)
+          </MenubarItem>
+          <MenubarItem @click="toggleShowImportHtmlDialog(true)">
+            <FileCode class="mr-2 size-4" />
+            导入 HTML
           </MenubarItem>
         </MenubarSubContent>
       </MenubarSub>
@@ -160,6 +168,14 @@ function exportEditorContent2PDF() {
           <MenubarItem @click="toggleShowImportMdDialog(true)">
             <FileText class="mr-2 size-4" />
             导入 Markdown
+          </MenubarItem>
+          <MenubarItem @click="toggleShowImportDocxDialog(true)">
+            <FileText class="mr-2 size-4" />
+            导入 Word (.docx)
+          </MenubarItem>
+          <MenubarItem @click="toggleShowImportHtmlDialog(true)">
+            <FileCode class="mr-2 size-4" />
+            导入 HTML
           </MenubarItem>
         </MenubarSubContent>
       </MenubarSub>

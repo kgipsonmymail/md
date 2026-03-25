@@ -82,13 +82,6 @@ function checkSelectionAndUpdateHint() {
   }
 }
 
-// 动态计算是否有选中文本
-const hasSelectedText = computed(() => {
-  if (!editor.value || !isExpanded.value)
-    return false
-  return getSelectedText().length > 0
-})
-
 // 当打开工具箱时，获取当前选中的文本
 const currentSelectedText = computed(() => {
   return toolBoxVisible.value ? getSelectedText() : ``
@@ -269,12 +262,12 @@ onMounted(() => {
         </div>
 
         <!-- 分割线 -->
-        <div v-if="hasSelectedText && isExpanded" class="mx-1.5">
+        <div v-if="isExpanded" class="mx-1.5">
           <div class="h-px bg-gray-200/50 dark:bg-gray-700/50" />
         </div>
 
-        <!-- AI工具箱按钮 (只有选中文本且展开时才显示) -->
-        <div v-if="hasSelectedText && isExpanded" class="flex flex-col items-center gap-1 px-1">
+        <!-- AI工具箱按钮 (展开时始终显示，支持全文排版) -->
+        <div v-if="isExpanded" class="flex flex-col items-center gap-1 px-1">
           <button
             class="group relative w-7 h-7 rounded-lg bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center utools-ai-button"
             title="AI工具箱"

@@ -94,13 +94,15 @@ export interface ProcessResult {
   errors?: string[]
 }
 
-// Wind 完整配置
-export interface WindConfig {
-  github: GitHubConfig
-  ai: AIFormatterConfig
+// HTML 解析选项
+export interface HtmlParseOptions {
+  preserveImages: boolean // 保留图片引用
+  imageBasePath?: string // 本地图片素材路径（_files/ 目录）
+  extractTitle: boolean // 从 <title> / og:title 提取标题
+  cleanupStyles: boolean // 清理纯装饰性 span
 }
 
-// Wind 配置
+// Wind 完整配置
 export interface WindConfig {
   github: GitHubConfig
   ai: AIFormatterConfig

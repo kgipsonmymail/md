@@ -1,5 +1,6 @@
 export * from './ai-service-options'
 export * from './api'
+export * from './formatting-templates'
 export * from './prefix'
 export * from './shortcut-key'
 export * from './store'

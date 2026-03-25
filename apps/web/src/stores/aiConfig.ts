@@ -19,7 +19,10 @@ const ENV_TYPE = import.meta.env.VITE_DEFAULT_AI_TYPE || ``
 export const useAIConfigStore = defineStore(`AIConfig`, () => {
   // ==================== 全局配置 ====================
 
-  // 服务类型（优先使用环境变量）
+  // 是否使用自定义配置（持久化）
+  const useCustom = store.reactive<boolean>(`openai_use_custom`, false)
+
+  // 服务类型（优先使用环境变量，除非开启自定义）
   const type = store.reactive<string>(`openai_type`, ENV_TYPE || DEFAULT_SERVICE_TYPE)
 
   // 温度参数（0-2，控制随机性）
@@ -30,23 +33,25 @@ export const useAIConfigStore = defineStore(`AIConfig`, () => {
 
   // ==================== 服务相关字段 ====================
 
-  // 服务端点（优先使用环境变量，否则由 watch(type) 初始化）
+  // 服务端点
   const endpoint = ref<string>(ENV_ENDPOINT || ``)
 
-  // 模型名称（优先使用环境变量，否则由 watch(type) 初始化）
+  // 模型名称
   const model = ref<string>(ENV_MODEL || ``)
 
   // ==================== API Key 管理 ====================
 
-  // API Key（优先使用环境变量，否则按服务类型分别持久化）
+  // API Key
   const apiKey = customRef<string>((track, trigger) => {
-    let cachedKey = ENV_API_KEY || ``
+    let cachedKey = (useCustom.value ? `` : ENV_API_KEY) || ``
 
-    if (!ENV_API_KEY) {
-      store.get(`openai_key_${type.value}`).then((value) => {
-        cachedKey = value || DEFAULT_SERVICE_KEY
-      })
+    const loadKey = async () => {
+      const value = await store.get(`openai_key_${type.value}`)
+      cachedKey = value || (useCustom.value ? `` : (ENV_API_KEY || DEFAULT_SERVICE_KEY))
+      trigger()
     }
+
+    loadKey()
 
     return {
       get() {
@@ -57,7 +62,7 @@ export const useAIConfigStore = defineStore(`AIConfig`, () => {
         cachedKey = val
         trigger()
 
-        if (!ENV_API_KEY && type.value !== DEFAULT_SERVICE_TYPE) {
+        if (type.value !== DEFAULT_SERVICE_TYPE) {
           store.set(`openai_key_${type.value}`, val)
         }
       },
@@ -66,32 +71,43 @@ export const useAIConfigStore = defineStore(`AIConfig`, () => {
 
   // ==================== 响应式逻辑 ====================
 
-  // 监听服务类型变化，自动同步端点和模型（仅在没有环境变量时生效）
+  // 监听服务类型/自定义状态变化，同步端点和模型
   watch(
-    type,
-    async (newType) => {
-      if (ENV_ENDPOINT && ENV_MODEL && ENV_API_KEY && ENV_TYPE) {
+    [type, useCustom],
+    async ([newType, isCustom]) => {
+      // 如果没有开启自定义且所有环境变量都存在，则锁定为环境配置
+      if (!isCustom && ENV_ENDPOINT && ENV_MODEL && ENV_API_KEY && ENV_TYPE) {
+        endpoint.value = ENV_ENDPOINT
+        model.value = ENV_MODEL
         return
       }
 
       const svc = serviceOptions.find(s => s.value === newType) ?? serviceOptions[0]
 
-      if (!ENV_ENDPOINT) {
+      // 同步端点
+      if (isCustom || !ENV_ENDPOINT) {
         endpoint.value = svc.endpoint
       }
+      else {
+        endpoint.value = ENV_ENDPOINT
+      }
 
-      if (!ENV_MODEL) {
+      // 同步模型
+      if (isCustom || !ENV_MODEL) {
         const saved = await store.get(`openai_model_${newType}`) || ``
         model.value = svc.models.includes(saved) ? saved : svc.models[0]
         await store.set(`openai_model_${newType}`, model.value)
+      }
+      else {
+        model.value = ENV_MODEL
       }
     },
     { immediate: true },
   )
 
-  // 监听模型变化，持久化存储（仅在没有环境变量时生效）
+  // 监听模型变化，持久化存储（仅在自定义模式或没有环境模型时生效）
   watch(model, async (val) => {
-    if (!ENV_MODEL) {
+    if (useCustom.value || !ENV_MODEL) {
       await store.set(`openai_model_${type.value}`, val)
     }
   })
@@ -102,6 +118,7 @@ export const useAIConfigStore = defineStore(`AIConfig`, () => {
    * 重置所有配置到默认值（优先恢复环境变量配置）
    */
   const reset = async () => {
+    useCustom.value = false
     type.value = ENV_TYPE || DEFAULT_SERVICE_TYPE
     temperature.value = DEFAULT_SERVICE_TEMPERATURE
     maxToken.value = DEFAULT_SERVICE_MAX_TOKEN
@@ -124,6 +141,7 @@ export const useAIConfigStore = defineStore(`AIConfig`, () => {
 
   return {
     // State
+    useCustom,
     type,
     endpoint,
     model,

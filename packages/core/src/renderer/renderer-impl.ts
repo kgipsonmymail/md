@@ -300,7 +300,7 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
       const newText = opts.legend ? transform(opts.legend, text, title) : ``
       const subText = newText ? styledContent(`figcaption`, newText) : ``
       const titleAttr = title ? ` title="${title}"` : ``
-      return `<figure><img src="${href}"${titleAttr} alt="${text}"/>${subText}</figure>`
+      return `<figure><img src="${href}"${titleAttr} alt="${text}" referrerpolicy="no-referrer"/>${subText}</figure>`
     },
 
     link({ href, title, text, tokens }: Tokens.Link): string {

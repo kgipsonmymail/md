@@ -254,8 +254,32 @@ async function initRepository() {
             @blur="handleConfigChange"
           >
           <datalist id="model-suggestions">
-            <option value="gpt-4">
-              GPT-4
+            <option value="glm-4-flash-250414">
+              GLM-4 Flash (智谱默认)
+            </option>
+            <option value="glm-4-flash">
+              GLM-4 Flash
+            </option>
+            <option value="glm-4.6v">
+              GLM-4.6v (智谱视觉)
+            </option>
+            <option value="glm-4">
+              GLM-4
+            </option>
+            <option value="glm-4-plus">
+              GLM-4 Plus
+            </option>
+            <option value="deepseek-chat">
+              DeepSeek Chat (V3)
+            </option>
+            <option value="deepseek-coder">
+              DeepSeek Coder
+            </option>
+            <option value="gpt-4o">
+              GPT-4o
+            </option>
+            <option value="gpt-4o-mini">
+              GPT-4o mini
             </option>
             <option value="gpt-4-turbo">
               GPT-4 Turbo
@@ -263,11 +287,11 @@ async function initRepository() {
             <option value="gpt-3.5-turbo">
               GPT-3.5 Turbo
             </option>
+            <option value="claude-3-5-sonnet-20240620">
+              Claude 3.5 Sonnet
+            </option>
             <option value="claude-3-opus-20240229">
               Claude 3 Opus
-            </option>
-            <option value="claude-3-sonnet-20240229">
-              Claude 3 Sonnet
             </option>
             <option value="qwen-turbo">
               通义千问 Turbo

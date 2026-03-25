@@ -9,6 +9,9 @@ import imageCompression from 'browser-image-compression'
 import { Eye, Pen } from 'lucide-vue-next'
 import { SidebarAIToolbar } from '@/components/ai'
 import FolderSourcePanel from '@/components/editor/FolderSourcePanel.vue'
+import ImportDocxDialog from '@/components/editor/ImportDocxDialog.vue'
+import ImportHtmlDialog from '@/components/editor/ImportHtmlDialog.vue'
+import ImportMarkdownDialog from '@/components/editor/ImportMarkdownDialog.vue'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -525,8 +528,7 @@ function createFormTextArea(dom: HTMLDivElement) {
               return true
             }
             Promise.all(
-              [...event.clipboardData.items]
-                .map(item => item.getAsFile())
+              Array.from(event.clipboardData.items, item => item.getAsFile())
                 .filter(item => item != null)
                 .map(async item => (await beforeImageUpload(item!)) ? item : null),
             ).then((items) => {
@@ -873,6 +875,10 @@ onUnmounted(() => {
       <InsertMpCardDialog />
 
       <ImportMarkdownDialog />
+
+      <ImportDocxDialog />
+
+      <ImportHtmlDialog />
 
       <TemplateDialog />
 

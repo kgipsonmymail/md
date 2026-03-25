@@ -76,17 +76,29 @@ export function loadWindConfig(): WindConfig {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       const config = JSON.parse(stored)
-      // 深度合并配置，确保所有字段都存在
+
+      // 深度合并配置：如果存储的值为空字符串且默认值不为空，则保留默认值
+      // 这里的目的是防止 .env 中的变量被 LocalStorage 里的空字符串覆盖
+      const mergeConfig = (target: any, source: any) => {
+        const result = { ...target }
+        for (const key in source) {
+          if (source[key] !== undefined && source[key] !== null && source[key] !== '') {
+            result[key] = source[key]
+          }
+        }
+        return result
+      }
+
       return {
-        github: { ...defaultWindConfig.github, ...config.github },
-        ai: { ...defaultWindConfig.ai, ...config.ai },
+        github: mergeConfig(defaultWindConfig.github, config.github),
+        ai: mergeConfig(defaultWindConfig.ai, config.ai),
       }
     }
   }
   catch (error) {
     console.warn('加载配置失败:', error)
   }
-  return defaultWindConfig
+  return { ...defaultWindConfig }
 }
 
 /**

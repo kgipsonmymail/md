@@ -3,7 +3,7 @@
  * 提供统一的 API 接口
  */
 
-import type { AIFormatterConfig, GitHubConfig, ProcessOptions } from './types'
+import type { AIFormatterConfig, GitHubConfig, HtmlParseOptions, ProcessOptions } from './types'
 import { AIFormatter } from './core/ai-formatter'
 import { WindProcessor } from './core/wind-processor'
 import { GitHubImageHost } from './services/github-image-host'
@@ -62,6 +62,28 @@ export async function processTextWithImages(
 ) {
   const processor = createWindProcessor(githubConfig, aiConfig)
   return await processor.processTextWithImages(text, images, options)
+}
+
+/**
+ * 快速处理 HTML 字符串
+ */
+export async function processHtmlContent(
+  html: string,
+  githubConfig: GitHubConfig,
+  aiConfig?: AIFormatterConfig,
+  options: ProcessOptions & { htmlOptions?: HtmlParseOptions } = {
+    uploadImages: true,
+    formatContent: true,
+    preserveOriginal: true,
+    htmlOptions: {
+      preserveImages: true,
+      extractTitle: true,
+      cleanupStyles: true,
+    },
+  },
+) {
+  const processor = createWindProcessor(githubConfig, aiConfig)
+  return await processor.processHtml(html, options)
 }
 
 /**

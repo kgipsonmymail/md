@@ -69,6 +69,14 @@ export const useUIStore = defineStore(`ui`, () => {
   /** 通过 URL 参数 open 打开时传入的待导入链接，对话框打开后会据此自动执行导入 */
   const importMdOpenUrl = ref<string | null>(null)
 
+  // 是否展示导入 Word 对话框
+  const isShowImportDocxDialog = ref(false)
+  const toggleShowImportDocxDialog = useToggle(isShowImportDocxDialog)
+
+  // 是否展示导入 HTML 对话框
+  const isShowImportHtmlDialog = ref(false)
+  const toggleShowImportHtmlDialog = useToggle(isShowImportHtmlDialog)
+
   // 是否展示模板管理对话框
   const isShowTemplateDialog = ref(false)
   const toggleShowTemplateDialog = useToggle(isShowTemplateDialog)
@@ -140,6 +148,10 @@ export const useUIStore = defineStore(`ui`, () => {
     isShowImportMdDialog,
     toggleShowImportMdDialog,
     importMdOpenUrl,
+    isShowImportDocxDialog,
+    toggleShowImportDocxDialog,
+    isShowImportHtmlDialog,
+    toggleShowImportHtmlDialog,
     isShowTemplateDialog,
     toggleShowTemplateDialog,
     isOpenConfirmDialog,
