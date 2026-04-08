@@ -12,16 +12,16 @@ function App() {
             <div className="flex items-center gap-6">
               <Link to="/" className="font-bold text-lg flex items-center gap-2">
                 <LayoutDashboard className="w-5 h-5 text-primary" />
-                <span>Wind Drafts</span>
+                <span>Wind 草稿台</span>
               </Link>
               <nav className="hidden md:flex gap-4">
-                <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">Gallery</Link>
-                <Link to="/editor" className="text-sm font-medium text-muted-foreground hover:text-foreground">New Draft</Link>
+                <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">草稿列表</Link>
+                <Link to="/editor" className="text-sm font-medium text-muted-foreground hover:text-foreground">新建草稿</Link>
               </nav>
             </div>
             <div>
               <Link to="/editor" className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2 gap-2">
-                <PenTool className="w-4 h-4" /> Write
+                <PenTool className="w-4 h-4" /> 去写作
               </Link>
             </div>
           </div>
