@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bot, Image as ImageIcon, Settings2, Wand2, FileEdit } from 'lucide-vue-next'
+import { Bot, FileEdit, Image as ImageIcon, Settings2, Wand2 } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { useUIStore } from '@/stores/ui'
 import AIAssistantPanel from './chat-box/AIAssistantPanel.vue'

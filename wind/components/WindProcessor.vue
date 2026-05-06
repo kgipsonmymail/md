@@ -10,10 +10,11 @@ const { processing, progress, currentStep, result, uploadedImages, errors, confi
 
 // UI 状态
 const showConfig = ref(false)
-const mode = ref<'docx' | 'text' | 'format'>('text')
+const mode = ref<'docx' | 'pdf' | 'text' | 'format'>('text')
 
 // 输入数据
 const docxFile = ref<File | null>(null)
+const pdfFile = ref<File | null>(null)
 const textContent = ref('')
 const imageFiles = ref<File[]>([])
 
@@ -26,6 +27,7 @@ const options = ref<ProcessOptions>({
 
 // 引用
 const docxInput = ref<HTMLInputElement>()
+const pdfInput = ref<HTMLInputElement>()
 const imageInput = ref<HTMLInputElement>()
 
 // 计算属性
@@ -34,6 +36,8 @@ const canProcess = computed(() => {
     return false
   if (mode.value === 'docx')
     return docxFile.value !== null
+  if (mode.value === 'pdf')
+    return pdfFile.value !== null
   if (mode.value === 'text')
     return textContent.value.trim().length > 0
   if (mode.value === 'format')
@@ -56,6 +60,24 @@ function handleDocxSelect(e: Event) {
   const target = e.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
     docxFile.value = target.files[0]
+  }
+}
+
+// 处理 .pdf 文件
+function handlePdfDrop(e: DragEvent) {
+  const files = e.dataTransfer?.files
+  if (files && files.length > 0) {
+    const file = files[0]
+    if (file.name.endsWith('.pdf')) {
+      pdfFile.value = file
+    }
+  }
+}
+
+function handlePdfSelect(e: Event) {
+  const target = e.target as HTMLInputElement
+  if (target.files && target.files.length > 0) {
+    pdfFile.value = target.files[0]
   }
 }
 
@@ -82,6 +104,9 @@ async function handleProcess() {
   try {
     if (mode.value === 'docx' && docxFile.value) {
       await windStore.processDocx(docxFile.value, options.value)
+    }
+    else if (mode.value === 'pdf' && pdfFile.value) {
+      await windStore.processPdf(pdfFile.value, options.value)
     }
     else if (mode.value === 'text') {
       await windStore.processTextWithImages(textContent.value, imageFiles.value, options.value)
@@ -145,6 +170,12 @@ function applyToEditor() {
           上传 .docx
         </button>
         <button
+          :class="{ active: mode === 'pdf' }"
+          @click="mode = 'pdf'"
+        >
+          上传 .pdf
+        </button>
+        <button
           :class="{ active: mode === 'text' }"
           @click="mode = 'text'"
         >
@@ -177,6 +208,31 @@ function applyToEditor() {
           <div v-else class="file-info">
             <span>{{ docxFile.name }}</span>
             <button class="btn-remove" @click="docxFile = null">
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- .pdf 模式 -->
+      <div v-if="mode === 'pdf'" class="input-section">
+        <div class="upload-area" @drop.prevent="handlePdfDrop" @dragover.prevent>
+          <input
+            ref="pdfInput"
+            type="file"
+            accept=".pdf"
+            style="display: none"
+            @change="handlePdfSelect"
+          >
+          <div v-if="!pdfFile" class="upload-placeholder" @click="$refs.pdfInput.click()">
+            <div class="upload-icon">
+              📑
+            </div>
+            <p>点击或拖拽上传 .pdf 文件</p>
+          </div>
+          <div v-else class="file-info">
+            <span>{{ pdfFile.name }}</span>
+            <button class="btn-remove" @click="pdfFile = null">
               ✕
             </button>
           </div>

@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { v4 as uuid } from 'uuid'
+import { computed } from 'vue'
 import { addPrefix } from '@/utils'
 import { store } from '@/utils/storage'
-import { computed } from 'vue'
 
 export interface Draft {
   id: string
@@ -34,7 +34,7 @@ export const useDraftStore = defineStore('draft', () => {
       coverImage: extractFirstImage(content),
       tags: ['wechat'],
       createDatetime: new Date(),
-      updateDatetime: new Date()
+      updateDatetime: new Date(),
     }
     drafts.value.unshift(newDraft)
     currentDraftId.value = newDraft.id
@@ -48,8 +48,10 @@ export const useDraftStore = defineStore('draft', () => {
         draft.content = updates.content
         draft.coverImage = extractFirstImage(updates.content)
       }
-      if (updates.title !== undefined) draft.title = updates.title
-      if (updates.tags !== undefined) draft.tags = updates.tags
+      if (updates.title !== undefined)
+        draft.title = updates.title
+      if (updates.tags !== undefined)
+        draft.tags = updates.tags
       draft.updateDatetime = new Date()
     }
   }
@@ -82,6 +84,6 @@ export const useDraftStore = defineStore('draft', () => {
     addDraft,
     updateDraft,
     deleteDraft,
-    setCurrentDraft
+    setCurrentDraft,
   }
 })

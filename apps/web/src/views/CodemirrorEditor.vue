@@ -12,7 +12,7 @@ import FolderSourcePanel from '@/components/editor/FolderSourcePanel.vue'
 import ImportDocxDialog from '@/components/editor/ImportDocxDialog.vue'
 import ImportHtmlDialog from '@/components/editor/ImportHtmlDialog.vue'
 import ImportMarkdownDialog from '@/components/editor/ImportMarkdownDialog.vue'
-import DraftEditorDialog from '@/wind/components/DraftEditorDialog.vue'
+import ImportPdfDialog from '@/components/editor/ImportPdfDialog.vue'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -29,6 +29,7 @@ import { useUIStore } from '@/stores/ui'
 import { checkImage, toBase64 } from '@/utils'
 import { fileUpload } from '@/utils/file'
 import { store } from '@/utils/storage'
+import DraftEditorDialog from '@/wind/components/DraftEditorDialog.vue'
 
 const editorStore = useEditorStore()
 const postStore = usePostStore()
@@ -880,6 +881,8 @@ onUnmounted(() => {
       <ImportDocxDialog />
 
       <ImportHtmlDialog />
+
+      <ImportPdfDialog />
 
       <DraftEditorDialog />
 

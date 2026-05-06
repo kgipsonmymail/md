@@ -128,6 +128,56 @@ export class WindProcessor {
   }
 
   /**
+   * 处理 .pdf 文件
+   */
+  async processPdf(file: File, options: ProcessOptions): Promise<ProcessResult> {
+    try {
+      console.log('📄 开始解析 PDF...')
+      // 1. 解析 PDF
+      const parsed = await this.parser.parsePdf(file)
+      console.log(`✅ PDF 解析完成，提取到 ${parsed.images.length} 张图片`)
+
+      // 2. 上传图片
+      let uploadResults: any[] = []
+      if (options.uploadImages && parsed.images.length > 0) {
+        console.log('📤 开始上传图片...')
+        const results = await this.imageManager.uploadImages(parsed.images)
+        uploadResults = Array.from(results.values())
+        console.log(`✅ 图片上传完成，共 ${uploadResults.length} 张`)
+
+        // 替换图片 URL
+        parsed.content = this.imageManager.replaceImageUrls(parsed.content, parsed.images)
+      }
+
+      // 3. AI 排版
+      let finalMarkdown = parsed.content
+      if (options.formatContent && this.aiFormatter) {
+        console.log('🤖 开始 AI 排版...')
+        const formatted = await this.aiFormatter.format(parsed.content)
+        finalMarkdown = formatted.markdown
+        console.log(`✅ AI 排版完成，应用了 ${formatted.changes.length} 处修改`)
+      }
+
+      return {
+        success: true,
+        markdown: finalMarkdown,
+        html: '', // 由外部渲染器生成
+        images: uploadResults,
+      }
+    }
+    catch (error) {
+      console.error('❌ 处理 PDF 失败:', error)
+      return {
+        success: false,
+        markdown: '',
+        html: '',
+        images: [],
+        errors: [(error as Error).message],
+      }
+    }
+  }
+
+  /**
    * 处理纯文本 + 图片文件
    */
   async processTextWithImages(

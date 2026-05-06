@@ -47,6 +47,23 @@ export async function processDocxFile(
 }
 
 /**
+ * 快速处理 .pdf 文件
+ */
+export async function processPdfFile(
+  file: File,
+  githubConfig: GitHubConfig,
+  aiConfig?: AIFormatterConfig,
+  options: ProcessOptions = {
+    uploadImages: true,
+    formatContent: true,
+    preserveOriginal: true,
+  },
+) {
+  const processor = createWindProcessor(githubConfig, aiConfig)
+  return await processor.processPdf(file, options)
+}
+
+/**
  * 快速处理文本 + 图片
  */
 export async function processTextWithImages(
