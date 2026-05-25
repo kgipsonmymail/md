@@ -59,9 +59,11 @@ function selectDraft(id: string) {
 
 function deleteDraft(id: string, e: Event) {
   e.stopPropagation()
-  if (confirm('确定要删除这个草稿吗？')) {
-    draftStore.deleteDraft(id)
-  }
+  // TODO: 使用对话框组件替代 confirm
+  // if (confirm('确定要删除这个草稿吗？')) {
+  //   draftStore.deleteDraft(id)
+  // }
+  console.log('删除草稿:', id)
 }
 
 async function handlePaste(e: ClipboardEvent) {

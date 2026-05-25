@@ -35,7 +35,7 @@ function handleDrop(event: DragEvent) {
     return
 
   const file = files[0]
-  if (!/\.pdf$/i.test(file.name)) {
+  if (!PDF_REGEX.test(file.name)) {
     toast.error(`请选择 .pdf 格式的文件`)
     return
   }

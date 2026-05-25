@@ -124,14 +124,14 @@ async function handleProcess() {
 async function copyMarkdown() {
   if (result.value) {
     await navigator.clipboard.writeText(result.value.markdown)
-    alert('Markdown 已复制到剪贴板')
+    console.log('Markdown 已复制到剪贴板')
   }
 }
 
 async function copyImageUrl(img: any) {
   const url = img.cdnUrl || img.url
   await navigator.clipboard.writeText(url)
-  alert('图片链接已复制')
+  console.log('图片链接已复制')
 }
 
 // 应用到编辑器
@@ -140,7 +140,6 @@ function applyToEditor() {
     // 这里需要与主编辑器集成
     // 可以通过 emit 或者直接操作编辑器实例
     console.log('应用到编辑器:', result.value.markdown)
-    alert('功能待实现：需要与主编辑器集成')
   }
 }
 </script>
