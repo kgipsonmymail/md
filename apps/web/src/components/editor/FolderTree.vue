@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import type { FileSystemNode } from '@/stores/folderSource'
 import { ChevronDown, ChevronRight, File, Folder, FolderOpen } from 'lucide-vue-next'
+import { FilePlus2, FolderPlus, Pencil, Trash2 } from 'lucide-vue-next'
 
 interface Props {
   nodes: FileSystemNode[]
   selectedPath?: string
   expandedPaths?: Set<string>
+  dropTargetPath?: string
   level?: number
 }
 
 interface Emits {
   (e: 'select', node: FileSystemNode): void
   (e: 'toggleExpand', path: string): void
+  (e: 'dragstart', node: FileSystemNode): void
+  (e: 'dragover', node: FileSystemNode): void
+  (e: 'drop', node: FileSystemNode): void
+  (e: 'dragend'): void
+  (e: 'rename', node: FileSystemNode): void
+  (e: 'delete', node: FileSystemNode): void
+  (e: 'createFile', node: FileSystemNode): void
+  (e: 'createFolder', node: FileSystemNode): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,6 +34,7 @@ const emit = defineEmits<Emits>()
 const isSelected = (path: string) => props.selectedPath === path
 
 const isExpanded = (path: string) => props.expandedPaths.has(path)
+const isDropTarget = (path: string) => props.dropTargetPath === path
 
 function handleNodeClick(node: FileSystemNode, event: MouseEvent) {
   event.stopPropagation()
@@ -41,6 +52,48 @@ function handleToggleClick(node: FileSystemNode, event: MouseEvent) {
     emit(`toggleExpand`, node.path)
   }
 }
+
+function handleDragStart(node: FileSystemNode) {
+  if (node.type === `file`) {
+    emit(`dragstart`, node)
+  }
+}
+
+function handleDragOver(node: FileSystemNode, event: DragEvent) {
+  if (node.type !== `directory`) {
+    return
+  }
+  event.preventDefault()
+  emit(`dragover`, node)
+}
+
+function handleDrop(node: FileSystemNode, event: DragEvent) {
+  if (node.type !== `directory`) {
+    return
+  }
+  event.preventDefault()
+  emit(`drop`, node)
+}
+
+function handleRename(node: FileSystemNode, event: MouseEvent) {
+  event.stopPropagation()
+  emit(`rename`, node)
+}
+
+function handleDelete(node: FileSystemNode, event: MouseEvent) {
+  event.stopPropagation()
+  emit(`delete`, node)
+}
+
+function handleCreateFile(node: FileSystemNode, event: MouseEvent) {
+  event.stopPropagation()
+  emit(`createFile`, node)
+}
+
+function handleCreateFolder(node: FileSystemNode, event: MouseEvent) {
+  event.stopPropagation()
+  emit(`createFolder`, node)
+}
 </script>
 
 <template>
@@ -51,11 +104,17 @@ function handleToggleClick(node: FileSystemNode, event: MouseEvent) {
         class="tree-node"
         :class="{
           selected: isSelected(node.path),
+          'drop-target': isDropTarget(node.path),
           directory: node.type === 'directory',
           file: node.type === 'file',
         }"
         :style="{ paddingLeft: `${level * 16 + 8}px` }"
+        :draggable="node.type === 'file'"
         @click="handleNodeClick(node, $event)"
+        @dragstart="handleDragStart(node)"
+        @dragover="handleDragOver(node, $event)"
+        @drop="handleDrop(node, $event)"
+        @dragend="emit('dragend')"
       >
         <!-- 展开/折叠图标 -->
         <span
@@ -79,6 +138,39 @@ function handleToggleClick(node: FileSystemNode, event: MouseEvent) {
         <span class="node-name" :title="node.name">
           {{ node.name }}
         </span>
+
+        <span class="node-actions">
+          <button
+            v-if="node.type === 'directory'"
+            class="node-action-btn"
+            title="在此目录下新建文件"
+            @click="handleCreateFile(node, $event)"
+          >
+            <FilePlus2 class="h-3 w-3" />
+          </button>
+          <button
+            v-if="node.type === 'directory'"
+            class="node-action-btn"
+            title="在此目录下新建文件夹"
+            @click="handleCreateFolder(node, $event)"
+          >
+            <FolderPlus class="h-3 w-3" />
+          </button>
+          <button
+            class="node-action-btn"
+            title="重命名"
+            @click="handleRename(node, $event)"
+          >
+            <Pencil class="h-3 w-3" />
+          </button>
+          <button
+            class="node-action-btn"
+            title="删除"
+            @click="handleDelete(node, $event)"
+          >
+            <Trash2 class="h-3 w-3" />
+          </button>
+        </span>
       </div>
 
       <!-- 递归渲染子节点（紧接在父节点之后） -->
@@ -87,9 +179,18 @@ function handleToggleClick(node: FileSystemNode, event: MouseEvent) {
         :nodes="node.children"
         :selected-path="selectedPath"
         :expanded-paths="expandedPaths"
+        :drop-target-path="dropTargetPath"
         :level="level + 1"
         @select="emit('select', $event)"
         @toggle-expand="emit('toggleExpand', $event)"
+        @dragstart="emit('dragstart', $event)"
+        @dragover="emit('dragover', $event)"
+        @drop="emit('drop', $event)"
+        @dragend="emit('dragend')"
+        @rename="emit('rename', $event)"
+        @delete="emit('delete', $event)"
+        @create-file="emit('createFile', $event)"
+        @create-folder="emit('createFolder', $event)"
       />
     </template>
   </div>
@@ -122,6 +223,11 @@ function handleToggleClick(node: FileSystemNode, event: MouseEvent) {
   font-weight: 500;
 }
 
+.tree-node.drop-target {
+  background-color: hsl(var(--primary) / 0.15);
+  outline: 1px solid hsl(var(--primary) / 0.45);
+}
+
 .toggle-icon {
   display: flex;
   align-items: center;
@@ -151,6 +257,34 @@ function handleToggleClick(node: FileSystemNode, event: MouseEvent) {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.node-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.tree-node:hover .node-actions {
+  display: inline-flex;
+}
+
+.node-action-btn {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+
+.node-action-btn:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
 }
 
 .tree-node.directory .node-name {

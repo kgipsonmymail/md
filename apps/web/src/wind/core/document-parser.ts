@@ -143,7 +143,7 @@ export class DocumentParser {
                     alt: `图片${images.length + 1}`,
                   }
                   images.push(imageAsset)
-                  pageImages[pageNum - 1].push(imageAsset)
+                  pageImages[pageNum - 1].push({ pageNum, img: imageAsset })
                 }
               }
             }
@@ -236,7 +236,7 @@ export class DocumentParser {
     let result = pageText
 
     // 按图片在页面出现的顺序插入
-    pageImages.forEach((item, index) => {
+    pageImages.forEach((item) => {
       // 查找最近的图表标题位置
       const imgIndex = allImages.findIndex(img => img.id === item.img.id)
       if (imgIndex >= 0) {

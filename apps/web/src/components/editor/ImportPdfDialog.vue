@@ -8,6 +8,8 @@ const editorStore = useEditorStore()
 const uiStore = useUIStore()
 const windStore = useWindStore()
 
+const PDF_REGEX = /\.pdf$/i
+
 const { isShowImportPdfDialog } = storeToRefs(uiStore)
 const { processing, progress, currentStep, errors } = storeToRefs(windStore)
 

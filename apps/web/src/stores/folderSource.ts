@@ -269,19 +269,8 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
     try {
       // 解析路径，找到对应的目录句柄
       const pathParts = filePath.split(`/`).slice(1) // 移除第一部分（文件夹名）
-      let currentHandle = currentRuntimeFolder.value.handle as FileSystemDirectoryHandle
-
-      // 遍历路径，创建不存在的目录
-      for (let i = 0; i < pathParts.length - 1; i++) {
-        const dirName = pathParts[i]
-        try {
-          currentHandle = await currentHandle.getDirectoryHandle(dirName)
-        }
-        catch {
-          // 目录不存在，创建它
-          currentHandle = await currentHandle.getDirectoryHandle(dirName, { create: true })
-        }
-      }
+      const directoryPath = pathParts.slice(0, -1).join(`/`)
+      const currentHandle = await ensureDirectoryHandle(directoryPath)
 
       // 获取或创建文件句柄
       const fileName = pathParts[pathParts.length - 1]
@@ -295,6 +284,254 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
     catch (error: any) {
       console.error(`保存文件失败: ${error.message}`)
       throw error
+    }
+  }
+
+  /**
+   * 创建目录（支持多级目录）
+   */
+  async function createDirectory(dirPath: string): Promise<void> {
+    if (!currentRuntimeFolder.value) {
+      throw new Error(`未选择文件夹`)
+    }
+
+    try {
+      const pathParts = dirPath.split(`/`).slice(1).filter(Boolean) // 移除第一部分（文件夹名）
+      await ensureDirectoryHandle(pathParts.join(`/`))
+    }
+    catch (error: any) {
+      console.error(`创建目录失败: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * 移动文件到目标目录
+   */
+  async function moveFile(sourceFilePath: string, targetDirectoryPath: string): Promise<string> {
+    if (!currentRuntimeFolder.value) {
+      throw new Error(`未选择文件夹`)
+    }
+
+    const sourceParts = sourceFilePath.split(`/`).slice(1).filter(Boolean)
+    const targetParts = targetDirectoryPath.split(`/`).slice(1).filter(Boolean)
+
+    if (sourceParts.length === 0 || targetParts.length === 0) {
+      throw new Error(`路径无效`)
+    }
+
+    const fileName = sourceParts[sourceParts.length - 1]
+    const sourceDirectoryParts = sourceParts.slice(0, -1)
+
+    // 同目录下拖拽视为无变化
+    if (sourceDirectoryParts.join(`/`) === targetParts.join(`/`)) {
+      return sourceFilePath
+    }
+
+    const sourceDirectoryHandle = await getDirectoryHandleByParts(sourceDirectoryParts, false)
+    const targetDirectoryHandle = await getDirectoryHandleByParts(targetParts, true)
+    const sourceFileHandle = await sourceDirectoryHandle.getFileHandle(fileName)
+    const sourceFile = await sourceFileHandle.getFile()
+
+    const targetFileName = await getAvailableFileName(targetDirectoryHandle, fileName)
+    const targetFileHandle = await targetDirectoryHandle.getFileHandle(targetFileName, { create: true })
+    const writable = await targetFileHandle.createWritable()
+
+    try {
+      await writable.write(await sourceFile.arrayBuffer())
+      await writable.close()
+      await sourceDirectoryHandle.removeEntry(fileName)
+      return `${currentRuntimeFolder.value.name}/${targetParts.join(`/`)}/${targetFileName}`
+    }
+    catch (error) {
+      await writable.abort()
+      throw error
+    }
+  }
+
+  /**
+   * 重命名文件或目录
+   */
+  async function renameEntry(
+    sourcePath: string,
+    newName: string,
+    type: 'file' | 'directory',
+  ): Promise<string> {
+    if (!currentRuntimeFolder.value) {
+      throw new Error(`未选择文件夹`)
+    }
+
+    const sourceParts = sourcePath.split(`/`).slice(1).filter(Boolean)
+    if (sourceParts.length === 0) {
+      throw new Error(`路径无效`)
+    }
+
+    const oldName = sourceParts[sourceParts.length - 1]
+    const parentParts = sourceParts.slice(0, -1)
+    const parentHandle = await getDirectoryHandleByParts(parentParts, false)
+
+    if (type === `file`) {
+      const oldFileHandle = await parentHandle.getFileHandle(oldName)
+      const oldFile = await oldFileHandle.getFile()
+      const finalName = await getAvailableFileName(parentHandle, newName)
+
+      if (finalName === oldName) {
+        return sourcePath
+      }
+
+      const newFileHandle = await parentHandle.getFileHandle(finalName, { create: true })
+      const writable = await newFileHandle.createWritable()
+      try {
+        await writable.write(await oldFile.arrayBuffer())
+        await writable.close()
+        await parentHandle.removeEntry(oldName)
+      }
+      catch (error) {
+        await writable.abort()
+        throw error
+      }
+
+      return `${currentRuntimeFolder.value.name}/${parentParts.join(`/`)}${parentParts.length ? `/` : ``}${finalName}`
+    }
+
+    const finalDirectoryName = await getAvailableDirectoryName(parentHandle, newName)
+    if (finalDirectoryName === oldName) {
+      return sourcePath
+    }
+
+    const oldDirHandle = await parentHandle.getDirectoryHandle(oldName)
+    const newDirHandle = await parentHandle.getDirectoryHandle(finalDirectoryName, { create: true })
+    await copyDirectoryRecursive(oldDirHandle, newDirHandle)
+    await parentHandle.removeEntry(oldName, { recursive: true })
+
+    return `${currentRuntimeFolder.value.name}/${parentParts.join(`/`)}${parentParts.length ? `/` : ``}${finalDirectoryName}`
+  }
+
+  /**
+   * 删除文件或目录
+   */
+  async function deleteEntry(path: string, type: 'file' | 'directory'): Promise<void> {
+    if (!currentRuntimeFolder.value) {
+      throw new Error(`未选择文件夹`)
+    }
+
+    const parts = path.split(`/`).slice(1).filter(Boolean)
+    if (parts.length === 0) {
+      throw new Error(`路径无效`)
+    }
+
+    const name = parts[parts.length - 1]
+    const parentParts = parts.slice(0, -1)
+    const parentHandle = await getDirectoryHandleByParts(parentParts, false)
+    await parentHandle.removeEntry(name, { recursive: type === `directory` })
+  }
+
+  /**
+   * 确保目录存在并返回目录句柄
+   */
+  async function ensureDirectoryHandle(directoryPath: string): Promise<FileSystemDirectoryHandle> {
+    if (!currentRuntimeFolder.value) {
+      throw new Error(`未选择文件夹`)
+    }
+
+    const pathParts = directoryPath.split(`/`).filter(Boolean)
+    let currentHandle = currentRuntimeFolder.value.handle as FileSystemDirectoryHandle
+
+    for (const dirName of pathParts) {
+      currentHandle = await currentHandle.getDirectoryHandle(dirName, { create: true })
+    }
+
+    return currentHandle
+  }
+
+  /**
+   * 根据路径片段获取目录句柄
+   */
+  async function getDirectoryHandleByParts(
+    parts: string[],
+    create: boolean,
+  ): Promise<FileSystemDirectoryHandle> {
+    if (!currentRuntimeFolder.value) {
+      throw new Error(`未选择文件夹`)
+    }
+
+    let currentHandle = currentRuntimeFolder.value.handle as FileSystemDirectoryHandle
+    for (const part of parts) {
+      currentHandle = await currentHandle.getDirectoryHandle(part, { create })
+    }
+    return currentHandle
+  }
+
+  /**
+   * 获取不冲突的目标文件名
+   */
+  async function getAvailableFileName(
+    directoryHandle: FileSystemDirectoryHandle,
+    fileName: string,
+  ): Promise<string> {
+    const dotIndex = fileName.lastIndexOf(`.`)
+    const baseName = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+    const extension = dotIndex > 0 ? fileName.slice(dotIndex) : ``
+
+    let index = 0
+    while (true) {
+      const candidate = index === 0 ? fileName : `${baseName} (${index})${extension}`
+      try {
+        await directoryHandle.getFileHandle(candidate)
+        index += 1
+      }
+      catch {
+        return candidate
+      }
+    }
+  }
+
+  /**
+   * 获取不冲突的目录名
+   */
+  async function getAvailableDirectoryName(
+    directoryHandle: FileSystemDirectoryHandle,
+    directoryName: string,
+  ): Promise<string> {
+    let index = 0
+    while (true) {
+      const candidate = index === 0 ? directoryName : `${directoryName} (${index})`
+      try {
+        await directoryHandle.getDirectoryHandle(candidate)
+        index += 1
+      }
+      catch {
+        return candidate
+      }
+    }
+  }
+
+  /**
+   * 递归复制目录内容
+   */
+  async function copyDirectoryRecursive(
+    source: FileSystemDirectoryHandle,
+    target: FileSystemDirectoryHandle,
+  ): Promise<void> {
+    for await (const entry of source.values()) {
+      if (entry.kind === `file`) {
+        const sourceFile = await (entry as FileSystemFileHandle).getFile()
+        const targetFileHandle = await target.getFileHandle(entry.name, { create: true })
+        const writable = await targetFileHandle.createWritable()
+        try {
+          await writable.write(await sourceFile.arrayBuffer())
+          await writable.close()
+        }
+        catch (error) {
+          await writable.abort()
+          throw error
+        }
+      }
+      else {
+        const sourceChildDir = entry as FileSystemDirectoryHandle
+        const targetChildDir = await target.getDirectoryHandle(sourceChildDir.name, { create: true })
+        await copyDirectoryRecursive(sourceChildDir, targetChildDir)
+      }
     }
   }
 
@@ -358,6 +595,10 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
     loadFileTree,
     readFile,
     writeFile,
+    createDirectory,
+    moveFile,
+    renameEntry,
+    deleteEntry,
     findNodeByPath,
     getAllMarkdownFiles,
   }

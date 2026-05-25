@@ -1,4 +1,28 @@
 
+# 0525
+开发一个功能，把内容管理和模板管理的文件，下载到本地文件夹里面
+开发功能，在本地文件夹这里可以创建新文件夹和文件。
+修复一个功能：下面这个图表渲染失败，没有画出来
+```infographic
+infographic list-row-horizontal-icon-arrow
+data
+  title 董氏奇穴三大核心优势
+  desc 临床医生选择董针的关键理由
+  items
+    - label 疗效迅速
+      value 95
+      desc 选穴有别于传统腧穴，定位准确、施治灵活
+      icon check-circle
+    - label 安全性高
+      value 90
+      desc 穴位多分布于四肢，远端取穴为主
+      icon shield-check
+    - label 体系完整
+      value 85
+      desc 包含穴法-针法-诊法-心法-疗法五大模块
+```
+
+
 # 0508
 allin
 一站式完成doc的上传、排版、改排版、渲染

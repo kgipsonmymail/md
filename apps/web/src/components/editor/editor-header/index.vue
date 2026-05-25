@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, Menu, Palette } from 'lucide-vue-next'
+import { Copy, FileEdit, Menu, Palette } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { useExportStore } from '@/stores/export'
 import { useRenderStore } from '@/stores/render'
@@ -27,6 +27,7 @@ const { editor } = storeToRefs(editorStore)
 const { output } = storeToRefs(renderStore)
 const { primaryColor } = storeToRefs(themeStore)
 const { isOpenRightSlider } = storeToRefs(uiStore)
+const { toggleShowDraftEditorDialog } = uiStore
 
 // Editor refresh function
 function editorRefresh() {
@@ -229,6 +230,10 @@ function copyToWeChat() {
   copyMode.value = 'txt'
   copy()
 }
+
+function openDraftEditorDialog() {
+  toggleShowDraftEditorDialog(true)
+}
 </script>
 
 <template>
@@ -272,6 +277,15 @@ function copyToWeChat() {
 
     <!-- 右侧操作区 -->
     <div class="flex flex-wrap items-center gap-2">
+      <Button
+        variant="outline"
+        class="h-9"
+        @click="openDraftEditorDialog"
+      >
+        <FileEdit class="mr-2 h-4 w-4" />
+        <span>草稿加工</span>
+      </Button>
+
       <!-- 复制按钮 -->
       <Button
         variant="outline"

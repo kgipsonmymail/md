@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import {
+  Download,
+  FilePlus,
   FolderClosed,
   FolderOpen,
   FolderPlus,
@@ -9,12 +11,16 @@ import {
   X,
 } from 'lucide-vue-next'
 import { useFolderFileSync } from '@/composables/useFolderFileSync'
+import { useEditorStore } from '@/stores/editor'
 import { useFolderSourceStore } from '@/stores/folderSource'
 import { usePostStore } from '@/stores/post'
+import { useTemplateStore } from '@/stores/template'
 import FolderTree from './FolderTree.vue'
 
+const editorStore = useEditorStore()
 const folderSourceStore = useFolderSourceStore()
 const postStore = usePostStore()
+const templateStore = useTemplateStore()
 const { setCurrentFilePath } = useFolderFileSync()
 
 const {
@@ -27,6 +33,8 @@ const {
 } = storeToRefs(folderSourceStore)
 
 const expandedPaths = ref<Set<string>>(new Set())
+const draggingFilePath = ref<string | null>(null)
+const dropTargetPath = ref<string | null>(null)
 
 function handleToggleExpand(path: string) {
   if (expandedPaths.value.has(path)) {
@@ -64,12 +72,15 @@ function handleCloseFolder() {
 async function handleOpenFile(node: any) {
   try {
     const content = await folderSourceStore.readFile(node.path)
-    // 从文件名中提取标题（移除 .md 扩展名）
-    const title = node.name.replace(/\.md$/i, ``)
 
-    // 创建新文章并设置内容
-    postStore.addPost(title)
-    postStore.updatePostContent(postStore.currentPostId, content)
+    // 直接复用当前文章，不再新建内容管理项
+    const currentPost = postStore.currentPost
+    if (currentPost) {
+      postStore.updatePostContent(currentPost.id, content)
+    }
+
+    // 将文件内容导入编辑器，进入可编辑状态
+    editorStore.importContent(content)
 
     // 记录当前文件路径以便自动同步
     setCurrentFilePath(node.path)
@@ -79,6 +90,283 @@ async function handleOpenFile(node: any) {
   catch (error) {
     console.error(`打开文件失败:`, error)
   }
+}
+
+function normalizeFileName(name: string): string {
+  return name
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+}
+
+function ensureOpenedFolder(): boolean {
+  if (!currentFolderHandle.value) {
+    toast.error('请先打开本地文件夹')
+    return false
+  }
+  return true
+}
+
+async function handleCreateFolder() {
+  await handleCreateFolderAtPath(currentFolderHandle.value?.name || null)
+}
+
+async function handleCreateFolderAtPath(targetDirectoryPath: string | null) {
+  if (!ensureOpenedFolder())
+    return
+
+  const input = window.prompt('请输入新文件夹名称')
+  if (!input)
+    return
+
+  const folderName = normalizeFileName(input)
+  if (!folderName) {
+    toast.error('文件夹名称不能为空')
+    return
+  }
+
+  try {
+    const basePath = targetDirectoryPath || currentFolderHandle.value!.name
+    await folderSourceStore.createDirectory(`${basePath}/${folderName}`)
+    await folderSourceStore.loadFileTree(currentFolderHandle.value!.handle)
+    expandedPaths.value.add(basePath)
+    expandedPaths.value.add(`${basePath}/${folderName}`)
+    expandedPaths.value = new Set(expandedPaths.value)
+    toast.success(`已创建文件夹: ${folderName}`)
+  }
+  catch (error: any) {
+    toast.error(`创建文件夹失败: ${error.message || '未知错误'}`)
+  }
+}
+
+async function handleCreateFile() {
+  await handleCreateFileAtPath(currentFolderHandle.value?.name || null)
+}
+
+async function handleCreateFileAtPath(targetDirectoryPath: string | null) {
+  if (!ensureOpenedFolder())
+    return
+
+  const input = window.prompt('请输入新文件名（默认 .md）', '新文件.md')
+  if (!input)
+    return
+
+  const normalized = normalizeFileName(input)
+  if (!normalized) {
+    toast.error('文件名不能为空')
+    return
+  }
+
+  const fileName = normalized.toLowerCase().endsWith('.md') ? normalized : `${normalized}.md`
+
+  try {
+    const basePath = targetDirectoryPath || currentFolderHandle.value!.name
+    await folderSourceStore.writeFile(`${basePath}/${fileName}`, `# ${fileName.replace(/\.md$/i, '')}\n`)
+    await folderSourceStore.loadFileTree(currentFolderHandle.value!.handle)
+    expandedPaths.value.add(basePath)
+    expandedPaths.value = new Set(expandedPaths.value)
+    toast.success(`已创建文件: ${fileName}`)
+  }
+  catch (error: any) {
+    toast.error(`创建文件失败: ${error.message || '未知错误'}`)
+  }
+}
+
+async function exportPostsToFolder() {
+  if (!ensureOpenedFolder())
+    return
+
+  try {
+    const rootName = currentFolderHandle.value!.name
+    const contentDir = `${rootName}/content-management`
+    await folderSourceStore.createDirectory(contentDir)
+
+    type PostItem = (typeof postStore.posts)[number]
+    const childMap = new Map<string | null, PostItem[]>()
+    for (const post of postStore.posts) {
+      const parentId = post.parentId ?? null
+      if (!childMap.has(parentId)) {
+        childMap.set(parentId, [])
+      }
+      childMap.get(parentId)!.push(post)
+    }
+
+    const exportNode = async (post: PostItem, baseDir: string) => {
+      const safeName = normalizeFileName(post.title) || '未命名内容'
+      const shortId = post.id.slice(0, 8)
+      const children = childMap.get(post.id) || []
+
+      if (children.length > 0) {
+        const nodeDir = `${baseDir}/${safeName}-${shortId}`
+        await folderSourceStore.createDirectory(nodeDir)
+        await folderSourceStore.writeFile(`${nodeDir}/index.md`, post.content)
+        for (const child of children) {
+          await exportNode(child, nodeDir)
+        }
+      }
+      else {
+        await folderSourceStore.writeFile(`${baseDir}/${safeName}-${shortId}.md`, post.content)
+      }
+    }
+
+    const roots = childMap.get(null) || []
+    for (const root of roots) {
+      await exportNode(root, contentDir)
+    }
+
+    await folderSourceStore.loadFileTree(currentFolderHandle.value!.handle)
+    toast.success(`已导出 ${postStore.posts.length} 个内容文件到 content-management`) 
+  }
+  catch (error: any) {
+    toast.error(`导出内容失败: ${error.message || '未知错误'}`)
+  }
+}
+
+async function exportTemplatesToFolder() {
+  if (!ensureOpenedFolder())
+    return
+
+  try {
+    const rootName = currentFolderHandle.value!.name
+    const templateDir = `${rootName}/template-management`
+    await folderSourceStore.createDirectory(templateDir)
+
+    for (const template of templateStore.templates) {
+      const safeName = normalizeFileName(template.name) || '未命名模板'
+      const shortId = template.id.slice(0, 8)
+      const filePath = `${templateDir}/${safeName}-${shortId}.md`
+      await folderSourceStore.writeFile(filePath, template.content)
+    }
+
+    const summaryPath = `${templateDir}/_templates_meta.json`
+    await folderSourceStore.writeFile(summaryPath, JSON.stringify(templateStore.templates, null, 2))
+
+    await folderSourceStore.loadFileTree(currentFolderHandle.value!.handle)
+    toast.success(`已导出 ${templateStore.templates.length} 个模板文件到 template-management`)
+  }
+  catch (error: any) {
+    toast.error(`导出模板失败: ${error.message || '未知错误'}`)
+  }
+}
+
+function handleDragStart(node: any) {
+  if (node.type !== 'file') {
+    return
+  }
+  draggingFilePath.value = node.path
+}
+
+function handleDragOver(node: any) {
+  if (node.type !== 'directory') {
+    dropTargetPath.value = null
+    return
+  }
+  dropTargetPath.value = node.path
+}
+
+function handleDragEnd() {
+  draggingFilePath.value = null
+  dropTargetPath.value = null
+}
+
+async function handleDropToDirectory(node: any) {
+  if (!draggingFilePath.value || !currentFolderHandle.value || node.type !== 'directory') {
+    handleDragEnd()
+    return
+  }
+
+  const sourcePath = draggingFilePath.value
+  const targetPath = node.path
+
+  // 不能拖到当前同级目录（由 store 内部判定）
+  try {
+    await folderSourceStore.moveFile(sourcePath, targetPath)
+    await folderSourceStore.loadFileTree(currentFolderHandle.value.handle)
+    expandedPaths.value.add(targetPath)
+    expandedPaths.value = new Set(expandedPaths.value)
+    toast.success('文件移动成功')
+  }
+  catch (error: any) {
+    toast.error(`文件移动失败: ${error.message || '未知错误'}`)
+  }
+  finally {
+    handleDragEnd()
+  }
+}
+
+async function handleRenameNode(node: any) {
+  if (!ensureOpenedFolder())
+    return
+
+  const currentName = node.type === 'file' ? node.name.replace(/\.md$/i, '') : node.name
+  const input = window.prompt('请输入新的名称', currentName)
+  if (!input)
+    return
+
+  const normalized = normalizeFileName(input)
+  if (!normalized) {
+    toast.error('名称不能为空')
+    return
+  }
+
+  const finalName = node.type === 'file'
+    ? (normalized.toLowerCase().endsWith('.md') ? normalized : `${normalized}.md`)
+    : normalized
+
+  try {
+    const newPath = await folderSourceStore.renameEntry(node.path, finalName, node.type)
+    await folderSourceStore.loadFileTree(currentFolderHandle.value!.handle)
+
+    if (selectedFilePath.value === node.path) {
+      selectedFilePath.value = newPath
+      setCurrentFilePath(newPath)
+    }
+
+    toast.success(`已重命名为: ${finalName}`)
+  }
+  catch (error: any) {
+    toast.error(`重命名失败: ${error.message || '未知错误'}`)
+  }
+}
+
+async function handleDeleteNode(node: any) {
+  if (!ensureOpenedFolder())
+    return
+
+  const confirmText = node.type === 'directory'
+    ? `确定删除文件夹「${node.name}」及其全部内容吗？`
+    : `确定删除文件「${node.name}」吗？`
+
+  if (!window.confirm(confirmText)) {
+    return
+  }
+
+  try {
+    await folderSourceStore.deleteEntry(node.path, node.type)
+    await folderSourceStore.loadFileTree(currentFolderHandle.value!.handle)
+
+    if (selectedFilePath.value === node.path) {
+      selectedFilePath.value = ''
+      setCurrentFilePath(null)
+    }
+
+    toast.success(`已删除: ${node.name}`)
+  }
+  catch (error: any) {
+    toast.error(`删除失败: ${error.message || '未知错误'}`)
+  }
+}
+
+function handleCreateFileInNode(node: any) {
+  if (node.type !== 'directory')
+    return
+  handleCreateFileAtPath(node.path)
+}
+
+function handleCreateFolderInNode(node: any) {
+  if (node.type !== 'directory')
+    return
+  handleCreateFolderAtPath(node.path)
 }
 </script>
 
@@ -122,9 +410,56 @@ async function handleOpenFile(node: any) {
           size="sm"
           class="text-xs"
           :disabled="isLoading"
+          title="新建文件夹"
+          @click="handleCreateFolder"
+        >
+          <FolderPlus class="h-3 w-3" />
+        </Button>
+
+        <Button
+          v-if="currentFolderHandle"
+          variant="outline"
+          size="sm"
+          class="text-xs"
+          :disabled="isLoading"
+          title="新建 Markdown 文件"
+          @click="handleCreateFile"
+        >
+          <FilePlus class="h-3 w-3" />
+        </Button>
+
+        <Button
+          v-if="currentFolderHandle"
+          variant="outline"
+          size="sm"
+          class="text-xs"
+          :disabled="isLoading"
           @click="handleRefreshFolder"
         >
           <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': isLoading }" />
+        </Button>
+      </div>
+
+      <div v-if="currentFolderHandle" class="grid grid-cols-2 gap-1 mt-1">
+        <Button
+          variant="outline"
+          size="sm"
+          class="text-xs"
+          :disabled="isLoading"
+          @click="exportPostsToFolder"
+        >
+          <Download class="h-3 w-3 mr-1" />
+          导出内容
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          class="text-xs"
+          :disabled="isLoading"
+          @click="exportTemplatesToFolder"
+        >
+          <Download class="h-3 w-3 mr-1" />
+          导出模板
         </Button>
       </div>
     </div>
@@ -189,8 +524,17 @@ async function handleOpenFile(node: any) {
           :nodes="fileTree"
           :selected-path="selectedFilePath"
           :expanded-paths="expandedPaths"
+          :drop-target-path="dropTargetPath || undefined"
           @select="handleOpenFile"
           @toggle-expand="handleToggleExpand"
+          @dragstart="handleDragStart"
+          @dragover="handleDragOver"
+          @drop="handleDropToDirectory"
+          @dragend="handleDragEnd"
+          @rename="handleRenameNode"
+          @delete="handleDeleteNode"
+          @create-file="handleCreateFileInNode"
+          @create-folder="handleCreateFolderInNode"
         />
       </div>
     </div>

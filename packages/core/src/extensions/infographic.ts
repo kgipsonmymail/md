@@ -13,12 +13,43 @@ let lastRenderedSvg: string | null = null
 const RE_INFOGRAPHIC_START = /^```infographic/m
 const RE_INFOGRAPHIC_BLOCK = /^```infographic\r?\n([\s\S]*?)\r?\n```/
 
+function toOfflineFriendlyInfographic(code: string): string {
+  // 图标查询服务在部分环境会被 CORS 拦截，导致整图不出。
+  // 降级为无图标模板，保证信息图至少可正常渲染。
+  return code
+    .replace(/\blist-row-horizontal-icon-arrow\b/g, 'list-row-horizontal-arrow')
+    .split(/\r?\n/)
+    .filter(line => !/^\s*icon\s+\S+\s*$/i.test(line))
+    .join('\n')
+}
+
 async function renderInfographic(containerId: string, code: string, cacheKey: string, options?: InfographicOptions) {
   if (typeof window === 'undefined')
     return
 
   try {
     const { Infographic, setDefaultFont, setFontExtendFactor, exportToSVG } = await import('@antv/infographic')
+    const safeCode = toOfflineFriendlyInfographic(code)
+    let exported = false
+
+    const exportRenderedNode = (container: HTMLElement, node: SVGElement) => {
+      if (exported)
+        return
+
+      exportToSVG(node as SVGSVGElement, { removeIds: true })
+        .then((svg) => {
+          if (exported)
+            return
+
+          exported = true
+          container.replaceChildren(svg)
+          svgCache.set(cacheKey, container.innerHTML)
+          lastRenderedSvg = container.innerHTML
+        })
+        .catch((error) => {
+          console.warn('Failed to export Infographic SVG:', error)
+        })
+    }
 
     setFontExtendFactor(1.1)
     setDefaultFont('-apple-system-font, "system-ui", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif')
@@ -61,15 +92,15 @@ async function renderInfographic(containerId: string, code: string, cacheKey: st
           },
         })
 
-        instance.on('loaded', ({ node }) => {
-          exportToSVG(node, { removeIds: true }).then((svg) => {
-            container.replaceChildren(svg)
-            svgCache.set(cacheKey, container.innerHTML)
-            lastRenderedSvg = container.innerHTML
-          })
+        instance.on('rendered', ({ node }) => {
+          setTimeout(() => exportRenderedNode(container, node), 0)
         })
 
-        instance.render(code)
+        instance.on('loaded', ({ node }) => {
+          exportRenderedNode(container, node)
+        })
+
+        instance.render(safeCode)
 
         return
       }
