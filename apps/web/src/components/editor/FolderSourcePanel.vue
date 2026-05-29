@@ -30,11 +30,23 @@ const {
   isLoading,
   loadError,
   isFileSystemAPISupported,
+  lastFolderName,
 } = storeToRefs(folderSourceStore)
 
 const expandedPaths = ref<Set<string>>(new Set())
 const draggingFilePath = ref<string | null>(null)
 const dropTargetPath = ref<string | null>(null)
+
+// 组件挂载时自动恢复之前保存的文件夹
+onMounted(async () => {
+  const result = await folderSourceStore.restoreSavedFolders()
+  if (result.restored && fileTree.value.length > 0) {
+    expandedPaths.value.add(fileTree.value[0].path)
+  }
+  else if (result.lastFolderName) {
+    toast.info(`上次打开的文件夹是「${result.lastFolderName}」，请点击按钮重新选择`)
+  }
+})
 
 function handleToggleExpand(path: string) {
   if (expandedPaths.value.has(path)) {
@@ -509,6 +521,9 @@ function handleCreateFolderInNode(node: any) {
         <FolderOpen class="h-12 w-12 mb-2 opacity-50" />
         <p class="text-sm">
           未打开文件夹
+        </p>
+        <p v-if="lastFolderName" class="text-xs mt-1 text-primary">
+          上次打开: {{ lastFolderName }}
         </p>
         <p class="text-xs mt-1">
           点击上方按钮打开本地文件夹

@@ -28,28 +28,9 @@ async function renderInfographic(containerId: string, code: string, cacheKey: st
     return
 
   try {
-    const { Infographic, setDefaultFont, setFontExtendFactor, exportToSVG } = await import('@antv/infographic')
+    const { Infographic, setDefaultFont, setFontExtendFactor } = await import('@antv/infographic')
     const safeCode = toOfflineFriendlyInfographic(code)
     let exported = false
-
-    const exportRenderedNode = (container: HTMLElement, node: SVGElement) => {
-      if (exported)
-        return
-
-      exportToSVG(node as SVGSVGElement, { removeIds: true })
-        .then((svg) => {
-          if (exported)
-            return
-
-          exported = true
-          container.replaceChildren(svg)
-          svgCache.set(cacheKey, container.innerHTML)
-          lastRenderedSvg = container.innerHTML
-        })
-        .catch((error) => {
-          console.warn('Failed to export Infographic SVG:', error)
-        })
-    }
 
     setFontExtendFactor(1.1)
     setDefaultFont('-apple-system-font, "system-ui", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif')
@@ -92,12 +73,25 @@ async function renderInfographic(containerId: string, code: string, cacheKey: st
           },
         })
 
-        instance.on('rendered', ({ node }) => {
-          setTimeout(() => exportRenderedNode(container, node), 0)
+        const persistRenderedSvg = () => {
+          if (exported)
+            return
+
+          const svg = container.querySelector('svg')
+          if (!svg)
+            return
+
+          exported = true
+          svgCache.set(cacheKey, container.innerHTML)
+          lastRenderedSvg = container.innerHTML
+        }
+
+        instance.on('rendered', () => {
+          setTimeout(persistRenderedSvg, 0)
         })
 
-        instance.on('loaded', ({ node }) => {
-          exportRenderedNode(container, node)
+        instance.on('loaded', () => {
+          persistRenderedSvg()
         })
 
         instance.render(safeCode)

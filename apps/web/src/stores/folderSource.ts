@@ -1,3 +1,7 @@
+import { clearAllFolderHandles, deleteFolderHandle, getAllFolderHandles, saveFolderHandle, verifyFolderPermission } from '@/utils/folderHandleDB'
+import { store } from '@/utils/storage'
+import { addPrefix } from '@/utils'
+
 /**
  * 文件系统节点接口
  */
@@ -40,6 +44,9 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
 
   // 加载错误信息
   const loadError = ref<string>(``)
+
+  // 上次打开的文件夹名称（持久化到 localStorage）
+  const lastFolderName = store.reactive<string>(addPrefix(`last_folder_name`), ``)
 
   // 当前运行时文件夹
   const currentRuntimeFolder = computed(() => {
@@ -124,6 +131,12 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
 
       currentFolderId.value = folderId
 
+      // 持久化到 IndexedDB
+      await saveFolderHandle(folderId, handle.name, handle)
+
+      // 保存文件夹名称到 localStorage
+      lastFolderName.value = handle.name
+
       // 加载文件树
       await loadFileTree(handle)
 
@@ -152,10 +165,78 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
   }
 
   /**
+   * 恢复之前保存的文件夹
+   * 从 IndexedDB 读取保存的文件夹句柄，验证权限后恢复
+   */
+  async function restoreSavedFolders(): Promise<{ restored: boolean, lastFolderName: string | null }> {
+    if (!isFileSystemAPISupported.value) {
+      return { restored: false, lastFolderName: null }
+    }
+
+    try {
+      const savedHandles = await getAllFolderHandles()
+      if (savedHandles.length === 0) {
+        return { restored: false, lastFolderName: null }
+      }
+
+      // 按时间戳排序，恢复最近使用的文件夹
+      savedHandles.sort((a, b) => b.timestamp - a.timestamp)
+
+      const mostRecentName = savedHandles[0].name
+
+      for (const saved of savedHandles) {
+        const hasPermission = await verifyFolderPermission(saved.handle)
+        if (hasPermission) {
+          // 恢复到内存
+          const folderId = saved.id
+          const folderInfo: RuntimeFolderInfo = {
+            id: folderId,
+            name: saved.name,
+            handle: saved.handle,
+          }
+          runtimeFolderMap.set(folderId, folderInfo)
+          currentFolderId.value = folderId
+
+          // 保存文件夹名称
+          lastFolderName.value = saved.name
+
+          // 加载文件树
+          await loadFileTree(saved.handle)
+
+          toast.success(`已恢复文件夹「${saved.name}」`)
+          return { restored: true, lastFolderName: null }
+        }
+        else {
+          // 权限被拒绝，从 IndexedDB 删除
+          await deleteFolderHandle(saved.id)
+        }
+      }
+
+      // 所有句柄都失效，保存最近的文件夹名称供提示
+      lastFolderName.value = mostRecentName
+      return { restored: false, lastFolderName: mostRecentName }
+    }
+    catch (error: any) {
+      console.error(`恢复文件夹失败:`, error)
+      return { restored: false, lastFolderName: null }
+    }
+  }
+
+  /**
+   * 清除所有保存的文件夹句柄
+   */
+  async function clearSavedFolders(): Promise<void> {
+    await clearAllFolderHandles()
+  }
+
+  /**
    * 从列表中移除文件夹
    */
-  function removeFolder(folderId: string) {
+  async function removeFolder(folderId: string) {
     runtimeFolderMap.delete(folderId)
+
+    // 从 IndexedDB 删除
+    await deleteFolderHandle(folderId)
 
     // 如果关闭的是当前文件夹，清空当前状态
     if (currentFolderId.value === folderId) {
@@ -584,6 +665,7 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
     selectedFilePath,
     isLoading,
     loadError,
+    lastFolderName,
 
     // Computed
     isFileSystemAPISupported,
@@ -601,5 +683,7 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
     deleteEntry,
     findNodeByPath,
     getAllMarkdownFiles,
+    restoreSavedFolders,
+    clearSavedFolders,
   }
 })

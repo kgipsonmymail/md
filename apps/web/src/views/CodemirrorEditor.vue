@@ -826,7 +826,7 @@ onUnmounted(() => {
                   :class="{ output_night: !backLight }"
                 >
                   <div
-                    class="preview border-x shadow-xl mx-auto"
+                    class="preview shadow-xl mx-auto"
                     :class="[
                       isMobile ? 'w-full' : previewWidth,
                       themeStore.previewWidth === 'w-[375px]' ? 'max-w-full' : '',

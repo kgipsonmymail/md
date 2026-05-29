@@ -606,13 +606,47 @@ export class HtmlParser {
     if ((el.tagName === 'SECTION' || el.tagName === 'DIV')
       && (style.includes('background-color') || style.includes('background:'))
       && (style.includes('border-radius') || style.includes('padding:'))) {
-      // 保留这种复杂的装饰块为 HTML，确保完美还原
+      // 公众号编辑器对普通块级容器的背景样式兼容性不稳定，
+      // 用带 bgcolor 的单元格结构承载背景色通常更容易被保留。
       // 清空原始 style 中的特定不兼容部分（如果有）
       const cleanStyle = style
         .replace(/display:\s*flex[^;]*;?/gi, '')
         .replace(/place-items:[^;]*;?/gi, '')
+      const backgroundColor = this.getStyleValue(cleanStyle, 'background') || '#f7f7f7'
+      const padding = this.getStyleValue(cleanStyle, 'padding') || '16px'
+      const borderRadius = '0'
 
-      return `\n\n<section style="${cleanStyle}">\n\n${this.convertChildren(el).trim()}\n\n</section>\n\n`
+      const cellStyle = [
+        `padding: ${padding}`,
+        `border-radius: ${borderRadius}`,
+        `background-color: ${backgroundColor}`,
+        cleanStyle
+          .replace(/background:[^;]*;?/gi, '')
+          .replace(/background-color:[^;]*;?/gi, '')
+          .replace(/padding:[^;]*;?/gi, '')
+          .replace(/border-radius:[^;]*;?/gi, '')
+          .replace(/display:[^;]*;?/gi, '')
+          .replace(/border-collapse:[^;]*;?/gi, '')
+          .trim(),
+      ]
+        .filter(Boolean)
+        .join('; ')
+
+      return `
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${backgroundColor}" style="border-collapse: separate; border-spacing: 0; width: 100%;">
+  <tbody>
+    <tr>
+      <td bgcolor="${backgroundColor}" style="${cellStyle}">
+
+${this.convertChildren(el).trim()}
+
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+`
     }
 
     let content = this.convertChildren(el).trim()

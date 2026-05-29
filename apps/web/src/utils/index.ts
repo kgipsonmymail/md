@@ -273,6 +273,76 @@ function modifyHtmlStructure(htmlString: string): string {
   return tempDiv.innerHTML
 }
 
+function getStyleValue(style: string, property: string): string | null {
+  if (!style)
+    return null
+
+  const properties = property === `background` ? [`background`, `background-color`] : [property]
+  const matches = Array.from(style.matchAll(/([^:;]+)\s*:\s*([^;]+)/g))
+
+  let winner: string | null = null
+  let hasImportant = false
+
+  for (const match of matches) {
+    const prop = match[1].trim().toLowerCase()
+    if (!properties.includes(prop))
+      continue
+
+    const val = match[2].trim()
+    const isImportant = val.toLowerCase().endsWith(`!important`)
+    const cleanVal = val.replace(/\s*!important\s*$/i, ``).trim()
+
+    if (isImportant) {
+      winner = cleanVal
+      hasImportant = true
+    }
+    else if (!hasImportant) {
+      winner = cleanVal
+    }
+  }
+
+  return winner
+}
+
+function transformBackgroundBlocksForWeChat(root: HTMLElement) {
+  root.querySelectorAll(`section, div`).forEach((el) => {
+    const style = el.getAttribute(`style`) || ``
+
+    if (!(style.includes(`background-color`) || style.includes(`background:`)))
+      return
+    if (!(style.includes(`padding`) || style.includes(`border-radius`)))
+      return
+
+    const backgroundColor = getStyleValue(style, `background`) || `#f7f7f7`
+    const padding = getStyleValue(style, `padding`) || `16px`
+    const borderRadius = `0`
+    const content = el.innerHTML.trim()
+
+    if (!content)
+      return
+
+    const table = document.createElement(`table`)
+    table.setAttribute(`width`, `100%`)
+    table.setAttribute(`cellpadding`, `0`)
+    table.setAttribute(`cellspacing`, `0`)
+    table.setAttribute(`border`, `0`)
+    table.setAttribute(`bgcolor`, backgroundColor)
+    table.setAttribute(`style`, `border-collapse: separate; border-spacing: 0; width: 100%; border: 0;`)
+
+    const tbody = document.createElement(`tbody`)
+    const tr = document.createElement(`tr`)
+    const td = document.createElement(`td`)
+    td.setAttribute(`bgcolor`, backgroundColor)
+    td.setAttribute(`style`, `padding: ${padding}; border-radius: ${borderRadius}; background-color: ${backgroundColor}; border: 0;`)
+    td.innerHTML = content
+
+    tr.appendChild(td)
+    tbody.appendChild(tr)
+    table.appendChild(tbody)
+    el.replaceWith(table)
+  })
+}
+
 function createEmptyNode(): HTMLElement {
   const node = document.createElement(`p`)
   node.style.fontSize = `0`
@@ -303,6 +373,7 @@ export async function processClipboardContent(primaryColor: string) {
 
   // 先合并 CSS 和修改 HTML 结构
   clipboardDiv.innerHTML = modifyHtmlStructure(mergeCss(clipboardDiv.innerHTML))
+  transformBackgroundBlocksForWeChat(clipboardDiv)
 
   // 处理样式和颜色变量
   clipboardDiv.innerHTML = clipboardDiv.innerHTML
