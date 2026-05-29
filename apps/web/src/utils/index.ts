@@ -11,7 +11,6 @@ import {
   toBase64,
 } from '@md/shared/utils'
 
-import juice from 'juice'
 import { Marked } from 'marked'
 
 export {
@@ -53,12 +52,41 @@ export function downloadMD(doc: string, title: string = `untitled`) {
 }
 
 /**
+ * 批量导出多篇文章为 ZIP
+ * @param posts - 文章列表（含 title 和 content）
+ */
+export async function exportPostsAsZip(posts: Array<{ title: string, content: string }>) {
+  const JSZip = (await import(`jszip`)).default
+  const zip = new JSZip()
+  posts.forEach(({ title, content }) => {
+    const safeTitle = sanitizeTitle(title)
+    zip.file(`${safeTitle}.md`, content)
+  })
+  const blob = await zip.generateAsync({ type: `blob` })
+  const date = new Date().toISOString().slice(0, 10)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement(`a`)
+  a.href = url
+  a.download = `posts-${date}.zip`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
  * 获取 HTML 内容
  * @returns {string} HTML 字符串
  */
 export function getHtmlContent(): string {
-  const element = document.querySelector(`#output`)!
-  return element.innerHTML
+  const element = document.querySelector(`#output`)
+  if (!element)
+    return ``
+  // Clone to avoid mutating the live DOM, then strip injected UI overlays
+  // (e.g. diagram download bars) that must not appear in exported content.
+  const clone = element.cloneNode(true) as HTMLElement
+  clone.querySelectorAll(`.diagram-download-bar`).forEach(el => el.remove())
+  return clone.innerHTML
 }
 
 /**
@@ -122,75 +150,69 @@ export async function exportPDF(title: string = `untitled`) {
   const stylesToAdd = await getStylesToAdd()
   const safeTitle = sanitizeTitle(title)
 
-  // 创建新窗口用于打印
-  const printWindow = window.open(``, `_blank`)
-  if (!printWindow) {
-    console.error(`无法打开打印窗口`)
-    return
-  }
-
-  // 写入HTML内容，包含主题样式和自定义页眉页脚
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>${safeTitle}</title>
-      ${stylesToAdd}
-      <style>
-        /* 强制打印背景颜色和图片 */
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-          color-adjust: exact !important;
-        }
-
-        /* 打印页面设置 */
-        @page {
-          @top-center {
-            content: "${safeTitle}";
-            font-size: 12px;
-            color: #666;
-          }
-          @bottom-left {
-            content: "https://md.doocs.org";
-            font-size: 10px;
-            color: #999;
-          }
-          @bottom-right {
-            content: "第 " counter(page) " 页，共 " counter(pages) " 页";
-            font-size: 10px;
-            color: #999;
-          }
-        }
-
-        @media print {
-          body { margin: 0; }
-        }
-      </style>
-    </head>
-    <body>
-      <div style="width: 100%; max-width: 750px; margin: auto;">
-        ${htmlStr}
-      </div>
-    </body>
-    </html>
-  `)
-
-  printWindow.document.close()
-
-  // 等待内容加载完成后自动打开打印对话框
-  printWindow.onload = () => {
-    printWindow.print()
-    // 打印完成后关闭窗口
-    printWindow.onafterprint = () => {
-      printWindow.close()
+  const printHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${safeTitle}</title>
+  ${stylesToAdd}
+  <style>
+    /* 强制打印背景颜色和图片 */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
     }
+
+    /* 打印页面设置 */
+    @page {
+      @top-center {
+        content: "${safeTitle}";
+        font-size: 12px;
+        color: #666;
+      }
+      @bottom-left {
+        content: "https://md.doocs.org";
+        font-size: 10px;
+        color: #999;
+      }
+      @bottom-right {
+        content: "第 " counter(page) " 页，共 " counter(pages) " 页";
+        font-size: 10px;
+        color: #999;
+      }
+    }
+
+    @media print {
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div style="width: 100%; max-width: 750px; margin: auto;">
+    ${htmlStr}
+  </div>
+</body>
+</html>`
+  const iframe = document.createElement(`iframe`)
+  iframe.style.cssText = `position:fixed;width:0;height:0;top:-9999px;left:-9999px;border:none;`
+  iframe.srcdoc = printHtml
+  document.body.appendChild(iframe)
+
+  iframe.onload = () => {
+    iframe.contentWindow?.focus()
+    iframe.contentWindow?.print()
+    // 延迟移除，确保打印完成
+    setTimeout(() => {
+      document.body.removeChild(iframe)
+    }, 500)
   }
 }
 
 export function solveWeChatImage() {
-  const clipboardDiv = document.getElementById(`output`)!
+  const clipboardDiv = document.getElementById(`output`)
+  if (!clipboardDiv)
+    return
   const images = clipboardDiv.getElementsByTagName(`img`)
 
   Array.from(images).forEach((image) => {
@@ -251,7 +273,8 @@ function getThemeStyles(): string {
   return styleContent
 }
 
-function mergeCss(html: string): string {
+async function mergeCss(html: string): Promise<string> {
+  const { default: juice } = await import(`juice`)
   return juice(html, {
     inlinePseudoElements: true,
     preserveImportant: true,
@@ -267,7 +290,7 @@ function modifyHtmlStructure(htmlString: string): string {
 
   // 移动 `li > ul` 和 `li > ol` 到 `li` 后面
   tempDiv.querySelectorAll(`li > ul, li > ol`).forEach((originalItem) => {
-    originalItem.parentElement!.insertAdjacentElement(`afterend`, originalItem)
+    originalItem.parentElement?.insertAdjacentElement(`afterend`, originalItem)
   })
 
   return tempDiv.innerHTML
@@ -363,7 +386,9 @@ async function getStylesToAdd(): Promise<string> {
 }
 
 export async function processClipboardContent(primaryColor: string) {
-  const clipboardDiv = document.getElementById(`output`)!
+  const clipboardDiv = document.getElementById(`output`)
+  if (!clipboardDiv)
+    return
 
   const stylesToAdd = await getStylesToAdd()
 
@@ -372,8 +397,11 @@ export async function processClipboardContent(primaryColor: string) {
   }
 
   // 先合并 CSS 和修改 HTML 结构
-  clipboardDiv.innerHTML = modifyHtmlStructure(mergeCss(clipboardDiv.innerHTML))
+  clipboardDiv.innerHTML = modifyHtmlStructure(await mergeCss(clipboardDiv.innerHTML))
   transformBackgroundBlocksForWeChat(clipboardDiv)
+
+  // 移除 fragment 锚点的 href（微信公众号后台不支持页面内跳转，保留会导致保存报错）
+  clipboardDiv.querySelectorAll(`a[href^="#"]`).forEach(a => a.removeAttribute(`href`))
 
   // 处理样式和颜色变量
   clipboardDiv.innerHTML = clipboardDiv.innerHTML
@@ -405,15 +433,21 @@ export async function processClipboardContent(primaryColor: string) {
   // 兼容 Mermaid
   const nodes = clipboardDiv.querySelectorAll(`.nodeLabel`)
   nodes.forEach((node) => {
-    const parent = node.parentElement!
-    const xmlns = parent.getAttribute(`xmlns`)!
-    const style = parent.getAttribute(`style`)!
+    const parent = node.parentElement
+    if (!parent)
+      return
+    const xmlns = parent.getAttribute(`xmlns`)
+    const style = parent.getAttribute(`style`)
+    if (!xmlns || !style)
+      return
     const section = document.createElement(`section`)
     section.setAttribute(`xmlns`, xmlns)
     section.setAttribute(`style`, style)
     section.innerHTML = parent.innerHTML
 
-    const grand = parent.parentElement!
+    const grand = parent.parentElement
+    if (!grand)
+      return
     // 清空父元素
     grand.innerHTML = ``
     grand.appendChild(section)

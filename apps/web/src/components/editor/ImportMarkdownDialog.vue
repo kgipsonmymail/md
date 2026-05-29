@@ -1,15 +1,82 @@
 <script setup lang="ts">
 import { FileText, Globe, Loader2, Upload } from 'lucide-vue-next'
-import { useEditorStore } from '@/stores/editor'
+import { usePostStore } from '@/stores/post'
 import { useUIStore } from '@/stores/ui'
 
-const editorStore = useEditorStore()
+const postStore = usePostStore()
 const uiStore = useUIStore()
 
 const { isShowImportMdDialog } = storeToRefs(uiStore)
 
 // 当前选中的 tab
 const activeTab = ref<'url' | 'file'>(`file`)
+
+// ==================== 检测本地图片路径 ====================
+/**
+ * 从 Markdown 内容中检测本地图片路径
+ * 排除 http/https URL、data URI 和空路径
+ */
+function detectLocalImagePaths(content: string): string[] {
+  const regex = /!\[[^\]]*\]\((?!https?:\/\/|data:)([^)]+)\)/g
+  const paths = new Set<string>()
+  let match = regex.exec(content)
+  while (match != null) {
+    const path = match[1]!.trim()
+    if (path) {
+      paths.add(path)
+    }
+    match = regex.exec(content)
+  }
+  return Array.from(paths)
+}
+
+/**
+ * 导入内容，如果包含本地图片则弹出上传对话框
+ */
+async function importContent(title: string, content: string) {
+  const localPaths = detectLocalImagePaths(content)
+  if (localPaths.length === 0) {
+    // 没有本地图片，直接导入
+    postStore.addPost(title)
+    postStore.updatePostContent(postStore.currentPostId, content)
+    closeDialog()
+    return
+  }
+
+  // 有本地图片，弹出上传对话框
+  uiStore.localImageUploadData = {
+    markdownContent: content,
+    detectedPaths: localPaths,
+  }
+  uiStore.isShowLocalImageUpload = true
+
+  // 等待上传对话框处理完成
+  await new Promise<void>((resolve) => {
+    const unwatch = watch(
+      () => uiStore.localImageUploadData,
+      (data) => {
+        if (data && data.processed) {
+          unwatch()
+          if (data.skipUpload) {
+            // 用户选择跳过，按原样导入
+            postStore.addPost(title)
+            postStore.updatePostContent(postStore.currentPostId, content)
+          }
+          else {
+            // 用户已上传并应用，使用替换后的内容
+            postStore.addPost(title)
+            postStore.updatePostContent(postStore.currentPostId, data!.markdownContent)
+          }
+          closeDialog()
+          resolve()
+        }
+      },
+    )
+  })
+
+  // 清理
+  uiStore.localImageUploadData = null
+}
 
 // ==================== 网络链接导入 ====================
 const url = ref(``)
@@ -94,8 +161,18 @@ async function importFromUrl() {
       ? await fetchMarkdownFile(rawUrl, signal)
       : await fetchViaAnythingMd(rawUrl, signal)
 
-    editorStore.importContent(content)
-    closeDialog()
+    // 从 URL 中提取标题
+    const urlTitle = (() => {
+      try {
+        const { pathname } = new URL(rawUrl)
+        const name = pathname.split(`/`).filter(Boolean).pop() || `untitled`
+        return name.replace(/\.(md|markdown|txt)$/i, ``)
+      }
+      catch {
+        return `untitled`
+      }
+    })()
+    await importContent(urlTitle, content)
   }
   catch (err) {
     if ((err as Error).name === `AbortError`)
@@ -152,11 +229,21 @@ function readFileAsText(file: File): Promise<string> {
 }
 
 async function readAndImportFiles(files: File[]) {
-  const contents = await Promise.all(files.map(readFileAsText))
-  const merged = contents.filter(c => c.trim()).join(`\n\n`)
-  if (merged) {
-    editorStore.importContent(merged)
-    closeDialog()
+  const results = await Promise.all(
+    files.map(async (file) => {
+      const content = await readFileAsText(file)
+      return { file, content }
+    }),
+  )
+  const validResults = results.filter(r => r.content.trim())
+  if (validResults.length === 0)
+    return
+  for (const { file, content } of validResults) {
+    const title = file.name.replace(/\.(md|markdown|txt)$/i, ``)
+    await importContent(title, content)
+  }
+  if (validResults.length > 0) {
+    toast.success(validResults.length === 1 ? `已导入 1 篇文章` : `已批量导入 ${validResults.length} 篇文章`)
   }
 }
 

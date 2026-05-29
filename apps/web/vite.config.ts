@@ -29,13 +29,18 @@ export default defineConfig(({ mode }) => {
   return {
     envDir,
     base,
-    define: { process },
     envPrefix: [`VITE_`, `CF_`],
     plugins: [
-      vue(),
+      vue({
+        template: {
+          compilerOptions: {
+            isCustomElement: tag => tag === `math-field`,
+          },
+        },
+      }),
       isCfWorkers && cloudflare(),
       tailwindcss(),
-      vueDevTools({
+      mode === `development` && vueDevTools({
         launchEditor: env.VITE_LAUNCH_EDITOR ?? `code`,
       }),
       VitePluginRadar({
@@ -58,12 +63,10 @@ export default defineConfig(({ mode }) => {
     css: { devSourcemap: true },
     build: {
       rollupOptions: {
-        external: [`mermaid`],
         output: {
           chunkFileNames: `static/js/md-[name]-[hash].js`,
           entryFileNames: `static/js/md-[name]-[hash].js`,
           assetFileNames: `static/[ext]/md-[name]-[hash].[ext]`,
-          globals: { mermaid: `mermaid` },
           manualChunks(id) {
             if (id.includes(`node_modules`)) {
               // @lezer/* are CodeMirror's parser primitives, keep together
@@ -114,7 +117,7 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
-      chunkSizeWarningLimit: 1700,
+      chunkSizeWarningLimit: 2000,
     },
   }
 })

@@ -6,7 +6,9 @@ import frontMatter from 'front-matter'
 import hljs from 'highlight.js/lib/core'
 import { marked } from 'marked'
 import {
+  getBuiltInRegistry,
   markedAlert,
+  markedComponent,
   markedFootnotes,
   markedInfographic,
   markedMarkup,
@@ -17,6 +19,7 @@ import {
   markedToc,
   MDKatex,
 } from '../extensions'
+import { escapeHtml } from '../utils/basicHelpers'
 import { COMMON_LANGUAGES, highlightAndFormatCode } from '../utils/languages'
 
 Object.entries(COMMON_LANGUAGES).forEach(([name, lang]) => {
@@ -28,28 +31,12 @@ export { hljs }
 marked.setOptions({
   breaks: true,
 })
-marked.use(markedSlider())
 
-const AMPERSAND_REGEX = /&/g
-const LESS_THAN_REGEX = /</g
-const GREATER_THAN_REGEX = />/g
 const DOUBLE_QUOTE_REGEX = /"/g
-const SINGLE_QUOTE_REGEX = /'/g
-const BACKTICK_REGEX = /`/g
 const UNDERSCORE_REGEX = /_/g
 const HEADING_TAG_REGEX = /^h\d$/
 const PARAGRAPH_WRAPPER_REGEX = /^<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/
 const MP_WEIXIN_LINK_REGEX = /^https?:\/\/mp\.weixin\.qq\.com/
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(AMPERSAND_REGEX, `&amp;`) // 转义 &
-    .replace(LESS_THAN_REGEX, `&lt;`) // 转义 <
-    .replace(GREATER_THAN_REGEX, `&gt;`) // 转义 >
-    .replace(DOUBLE_QUOTE_REGEX, `&quot;`) // 转义 "
-    .replace(SINGLE_QUOTE_REGEX, `&#39;`) // 转义 '
-    .replace(BACKTICK_REGEX, `&#96;`) // 转义 `
-}
 
 function buildAddition(): string {
   return `
@@ -80,7 +67,22 @@ function buildFootnoteArray(footnotes: [number, string, string][]): string {
     .join(`\n`)
 }
 
-function transform(legend: string, text: string | null, title: string | null): string {
+function extractFileName(href: string): string {
+  try {
+    // 移除查询参数和哈希
+    const urlPath = href.split('?')[0].split('#')[0]
+    // 获取最后一个 / 之后的部分
+    const fileName = urlPath.split('/').pop() || ''
+    // 移除文件扩展名
+    const nameWithoutExt = fileName.replace(/\.[^.]*$/, '')
+    return nameWithoutExt
+  }
+  catch {
+    return ''
+  }
+}
+
+function transform(legend: string, text: string | null, title: string | null, href: string = ''): string {
   const options = legend.split(`-`)
   for (const option of options) {
     if (option === `alt` && text) {
@@ -88,6 +90,12 @@ function transform(legend: string, text: string | null, title: string | null): s
     }
     if (option === `title` && title) {
       return title
+    }
+    if (option === `filename` && href) {
+      const fileName = extractFileName(href)
+      if (fileName) {
+        return escapeHtml(fileName)
+      }
     }
   }
   return ``
@@ -100,6 +108,54 @@ const macCodeSvg = `
     <ellipse cx="400" cy="65" rx="50" ry="52" stroke="rgb(27,161,37)" stroke-width="2" fill="rgb(100,200,86)" />
   </svg>
 `.trim()
+
+/**
+ * 渲染 diff-{lang} 代码块。
+ * 以 `+` 开头的行显示绿色底色（新增），`-` 开头的行显示红色底色（删除），
+ * 其余行正常高亮显示。
+ */
+function renderDiffCode(text: string, baseLang: string): string {
+  const isLangRegistered = hljs.getLanguage(baseLang)
+  const lang = isLangRegistered ? baseLang : `plaintext`
+
+  const lines = text.split(`\n`)
+  const prefixes = lines.map(line => line[0])
+  // 将每行去掉前缀（+/-/ ）后拼接，整体高亮一次以避免逐行调用 hljs
+  const strippedLines = lines.map((line, i) => {
+    const p = prefixes[i]
+    return (p === `+` || p === `-`) ? line.slice(1) : line
+  })
+  const highlightedLines = isLangRegistered
+    ? hljs.highlight(strippedLines.join(`\n`), { language: lang }).value.split(`\n`)
+    : strippedLines.map(escapeHtml)
+
+  const rendered = lines
+    .map((_, i) => {
+      const prefix = prefixes[i]
+      const highlighted = highlightedLines[i] ?? ``
+      let bg: string
+      let sign: string
+
+      if (prefix === `+`) {
+        bg = `background:rgba(80,200,80,.18);`
+        sign = `<span style="color:#52c41a;user-select:none;">+</span>`
+      }
+      else if (prefix === `-`) {
+        bg = `background:rgba(255,80,80,.18);`
+        sign = `<span style="color:#ff4d4f;user-select:none;">-</span>`
+      }
+      else {
+        bg = ``
+        sign = `<span style="user-select:none;"> </span>`
+      }
+
+      return `<span style="display:block;${bg}">${sign}${highlighted}</span>`
+    })
+    .join(``)
+
+  const span = `<span class="mac-sign" style="padding: 10px 14px 0;">${macCodeSvg}</span>`
+  return `<pre class="hljs code__pre">${span}<code class="language-diff-${baseLang}">${rendered}</code></pre>`
+}
 
 interface ParseResult {
   yamlData: Record<string, any>
@@ -146,12 +202,14 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
    * @param styleLabel CSS 类名标识
    * @param content 内容
    * @param tagName HTML 标签名（可选）
+   * @param style 内联样式（可选）
    */
-  function styledContent(styleLabel: string, content: string, tagName?: string): string {
+  function styledContent(styleLabel: string, content: string, tagName?: string, style?: string): string {
     const tag = tagName ?? styleLabel
     const className = `${styleLabel.replace(UNDERSCORE_REGEX, `-`)}`
     const headingAttr = HEADING_TAG_REGEX.test(tag) ? ` data-heading="true"` : ``
-    return `<${tag} class="${className}"${headingAttr}>${content}</${tag}>`
+    const styleAttr = style ? ` style="${style}"` : ``
+    return `<${tag} class="${className}"${headingAttr}${styleAttr}>${content}</${tag}>`
   }
 
   function addFootnote(title: string, link: string): number {
@@ -227,6 +285,12 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
 
     code({ text, lang = `` }: Tokens.Code): string {
       const langText = lang.split(` `)[0]
+
+      // diff-{lang} 语法：将代码渲染为 diff 对比视图（+/- 行着色）
+      if (langText.startsWith(`diff-`)) {
+        return renderDiffCode(text, langText.slice(5))
+      }
+
       const isLanguageRegistered = hljs.getLanguage(langText)
       const language = isLanguageRegistered ? langText : `plaintext`
 
@@ -297,10 +361,21 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
     },
 
     image({ href, title, text }: Tokens.Image): string {
-      const newText = opts.legend ? transform(opts.legend, text, title) : ``
+      let widthAttr = ``
+      let heightAttr = ``
+      let altText = text
+
+      const sizeMatch = text.match(/\|(\d+)(?:x(\d+))?$/)
+      if (sizeMatch) {
+        altText = text.replace(/\|(\d+)(?:x(\d+))?$/, ``)
+        widthAttr = sizeMatch[1] ? ` width="${sizeMatch[1]}"` : ``
+        heightAttr = sizeMatch[2] ? ` height="${sizeMatch[2]}"` : ``
+      }
+
+      const newText = opts.legend ? transform(opts.legend, altText, title, href) : ``
       const subText = newText ? styledContent(`figcaption`, newText) : ``
       const titleAttr = title ? ` title="${title}"` : ``
-      return `<figure><img src="${href}"${titleAttr} alt="${text}" referrerpolicy="no-referrer"/>${subText}</figure>`
+      return `<figure><img src="${href}"${titleAttr}${widthAttr}${heightAttr} alt="${altText}" referrerpolicy="no-referrer"/>${subText}</figure>`
     },
 
     link({ href, title, text, tokens }: Tokens.Link): string {
@@ -330,7 +405,7 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
       const headerRow = header
         .map((cell) => {
           const text = this.parser.parseInline(cell.tokens)
-          return styledContent(`th`, text)
+          return styledContent(`th`, text, undefined, `text-align: ${cell.align || `left`}`)
         })
         .join(``)
       const body = rows
@@ -342,7 +417,7 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
         })
         .join(``)
       return `
-        <section style="max-width: 100%; overflow: auto">
+        <section style="max-width: 100%; overflow: auto; -webkit-overflow-scrolling: touch">
           <table class="preview-table">
             <thead>${headerRow}</thead>
             <tbody>${body}</tbody>
@@ -353,16 +428,26 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
 
     tablecell(token: Tokens.TableCell): string {
       const text = this.parser.parseInline(token.tokens)
-      return styledContent(`td`, text)
+      return styledContent(`td`, text, undefined, `text-align: ${token.align || `left`}`)
     },
 
-    hr(_: Tokens.Hr): string {
-      return styledContent(`hr`, ``)
+    hr(token: Tokens.Hr): string {
+      const raw = token.raw.trim()
+      let variant = `dash`
+      if (raw.includes(`*`)) {
+        variant = `star`
+      }
+      else if (raw.includes(`_`)) {
+        variant = `underscore`
+      }
+      return `<hr class="hr hr-${variant}">`
     },
   }
 
   marked.use({ renderer })
   // 新主题系统：扩展不再需要 styles 参数
+  // 通过闭包传入注册表 getter，避免直接依赖全局状态
+  marked.use(markedComponent(() => opts.components ?? getBuiltInRegistry()))
   marked.use(markedMarkup())
   marked.use(markedToc())
   marked.use(markedSlider())
@@ -384,7 +469,7 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
     parseFrontMatterAndContent,
     buildReadingTime,
     createContainer(content: string) {
-      return styledContent(`container`, content, `section`)
+      return styledContent(`container mx-auto`, content, `section`)
     },
     getOpts,
   }

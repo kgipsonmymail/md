@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Template } from '@md/shared'
 import { Calendar, Clock, FileDown, FileInput, FileText, Package, Pencil, Plus, Search, Trash2 } from 'lucide-vue-next'
+import { useConfirmStore } from '@/stores/confirm'
 import { useEditorStore } from '@/stores/editor'
 import { usePostStore } from '@/stores/post'
 import { useTemplateStore } from '@/stores/template'
 import { useUIStore } from '@/stores/ui'
 
+const confirmStore = useConfirmStore()
 const editorStore = useEditorStore()
 const postStore = usePostStore()
 const templateStore = useTemplateStore()
@@ -132,23 +134,13 @@ function insertTemplate(template: Template) {
   toggleShowTemplateDialog(false)
 }
 
-// 删除确认对话框
-const deleteConfirmDialog = ref(false)
-const templateToDelete = ref<Template | null>(null)
-
 // 打开删除确认对话框
 function openDeleteConfirm(template: Template) {
-  templateToDelete.value = template
-  deleteConfirmDialog.value = true
-}
-
-// 确认删除模板
-function confirmDelete() {
-  if (templateToDelete.value) {
-    templateStore.deleteTemplate(templateToDelete.value.id)
-    templateToDelete.value = null
-  }
-  deleteConfirmDialog.value = false
+  confirmStore.confirm({
+    title: '确认删除',
+    description: `确定要删除模板「${template.name}」吗？此操作不可恢复。`,
+    onConfirm: () => { templateStore.deleteTemplate(template.id) },
+  })
 }
 
 // 格式化日期
@@ -348,35 +340,6 @@ function onUpdate(val: boolean) {
           </div>
         </div>
       </div>
-
-      <DialogFooter v-if="!isShowForm" class="px-6 pb-6 pt-4 border-t">
-        <div class="flex items-center justify-between w-full">
-          <p class="text-sm text-muted-foreground">
-            共 {{ templateStore.templateCount }} 个模板
-          </p>
-          <Button variant="outline" @click="toggleShowTemplateDialog(false)">
-            关闭
-          </Button>
-        </div>
-      </DialogFooter>
     </DialogContent>
   </Dialog>
-
-  <!-- 删除确认对话框 -->
-  <AlertDialog v-model:open="deleteConfirmDialog">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>确认删除</AlertDialogTitle>
-        <AlertDialogDescription>
-          确定要删除模板「{{ templateToDelete?.name }}」吗？此操作不可恢复。
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel>取消</AlertDialogCancel>
-        <AlertDialogAction @click="confirmDelete">
-          确定
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
 </template>

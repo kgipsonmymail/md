@@ -17,12 +17,14 @@ import {
 } from '@md/shared/configs'
 import { X } from 'lucide-vue-next'
 import PickColors from 'vue-pick-colors'
+import { useConfirmStore } from '@/stores/confirm'
 import { useCssEditorStore } from '@/stores/cssEditor'
 import { useEditorStore } from '@/stores/editor'
 import { useRenderStore } from '@/stores/render'
 import { useThemeStore } from '@/stores/theme'
 import { useUIStore } from '@/stores/ui'
 
+const confirmStore = useConfirmStore()
 const cssEditorStore = useCssEditorStore()
 const uiStore = useUIStore()
 const themeStore = useThemeStore()
@@ -104,7 +106,9 @@ function colorChanged(newColor: string) {
   editorRefresh()
 }
 
-function codeBlockThemeChanged(newTheme: string) {
+function codeBlockThemeChanged(newTheme: unknown) {
+  if (typeof newTheme !== 'string')
+    return
   themeStore.codeBlockTheme = newTheme
   editorRefresh()
 }
@@ -144,7 +148,19 @@ function useJustifyChanged() {
 }
 
 function resetStyleConfirm() {
-  uiStore.isOpenConfirmDialog = true
+  confirmStore.confirm({
+    title: '提示',
+    description: '此操作将丢失本地自定义样式，是否继续？',
+    onConfirm: () => {
+      themeStore.resetStyle()
+      cssEditorStore.resetCssConfig()
+      themeStore.applyCurrentTheme()
+      themeStore.updateCodeTheme()
+      const raw = editorStore.getContent()
+      renderStore.render(raw)
+      toast.success(`样式已重置`)
+    },
+  })
 }
 
 // 控制是否启用动画
@@ -187,30 +203,16 @@ const formatOptions = ref<Format[]>([`rgb`, `hex`, `hsl`, `hsv`])
   />
 
   <div
-    class="overflow-hidden mobile-right-drawer"
+    class="h-full overflow-hidden"
     :class="{
-      // 移动端样式
-      'fixed top-0 right-0 w-full h-full z-55 bg-background border-l shadow-lg': isMobile,
+      'fixed top-0 right-0 w-full h-full z-55 bg-background border-l shadow-lg mobile-right-drawer': isMobile,
       'animate': isMobile && enableAnimation,
-      // 桌面端样式
-      'border-l-2 order-2 border-gray/20 bg-white transition-width duration-300 dark:bg-[#191919]': !isMobile,
-      'w-100': !isMobile && isOpenRightSlider,
-      'w-0 border-l-0': !isMobile && !isOpenRightSlider,
     }"
-    :style="{
-      transform: isMobile ? (isOpenRightSlider ? 'translateX(0)' : 'translateX(100%)') : 'none',
-    }"
+    :style="isMobile ? { transform: isOpenRightSlider ? 'translateX(0)' : 'translateX(100%)' } : undefined"
   >
     <div
       class="space-y-4 h-full overflow-auto p-4"
-      :class="{
-        // 移动端不需要额外的transform
-        'pt-0': isMobile,
-        // 桌面端保持原有的动画
-        'transition-transform': !isMobile,
-        'translate-x-0': !isMobile && isOpenRightSlider,
-        'translate-x-full': !isMobile && !isOpenRightSlider,
-      }"
+      :class="{ 'pt-0': isMobile }"
     >
       <!-- 移动端标题栏 -->
       <div v-if="isMobile" class="sticky top-0 z-10 flex items-center justify-between -mx-4 px-4 py-3 border-b mb-4 bg-background">

@@ -12,8 +12,8 @@ import FileDropdown from './FileDropdown.vue'
 import FormatDropdown from './FormatDropdown.vue'
 import HelpDropdown from './HelpDropdown.vue'
 import InsertDropdown from './InsertDropdown.vue'
+import MarkdownHelpDialog from './MarkdownHelpDialog.vue'
 import StyleDropdown from './StyleDropdown.vue'
-import ViewDropdown from './ViewDropdown.vue'
 
 const emit = defineEmits([`startCopy`, `endCopy`])
 
@@ -41,8 +41,8 @@ function editorRefresh() {
 const aboutDialogVisible = ref(false)
 const fundDialogVisible = ref(false)
 const editorStateDialogVisible = ref(false)
+const markdownHelpDialogVisible = ref(false)
 
-// 处理帮助菜单事件
 function handleOpenAbout() {
   aboutDialogVisible.value = true
 }
@@ -53,6 +53,10 @@ function handleOpenFund() {
 
 function handleOpenEditorState() {
   editorStateDialogVisible.value = true
+}
+
+function handleOpenMarkdownHelp() {
+  markdownHelpDialogVisible.value = true
 }
 
 const copyMode = store.reactive(addPrefix(`copyMode`), `txt`)
@@ -248,8 +252,7 @@ function openDraftEditorDialog() {
         <FormatDropdown />
         <InsertDropdown />
         <StyleDropdown />
-        <ViewDropdown />
-        <HelpDropdown @open-about="handleOpenAbout" @open-fund="handleOpenFund" />
+        <HelpDropdown @open-about="handleOpenAbout" @open-fund="handleOpenFund" @open-markdown-help="handleOpenMarkdownHelp" />
       </Menubar>
     </div>
 
@@ -268,8 +271,7 @@ function openDraftEditorDialog() {
             <FormatDropdown :as-sub="true" />
             <InsertDropdown :as-sub="true" />
             <StyleDropdown :as-sub="true" />
-            <ViewDropdown :as-sub="true" />
-            <HelpDropdown :as-sub="true" @open-about="handleOpenAbout" @open-fund="handleOpenFund" />
+            <HelpDropdown :as-sub="true" @open-about="handleOpenAbout" @open-fund="handleOpenFund" @open-markdown-help="handleOpenMarkdownHelp" />
           </MenubarContent>
         </MenubarMenu>
       </Menubar>
@@ -316,7 +318,7 @@ function openDraftEditorDialog() {
   <AboutDialog :visible="aboutDialogVisible" @close="aboutDialogVisible = false" />
   <FundDialog :visible="fundDialogVisible" @close="fundDialogVisible = false" />
   <EditorStateDialog :visible="editorStateDialogVisible" @close="editorStateDialogVisible = false" />
-  <AIImageGeneratorPanel v-model:open="uiStore.aiImageDialogVisible" />
+  <MarkdownHelpDialog :visible="markdownHelpDialogVisible" @close="markdownHelpDialogVisible = false" />
 </template>
 
 <style lang="less" scoped>

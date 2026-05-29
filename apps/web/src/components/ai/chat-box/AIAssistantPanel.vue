@@ -3,15 +3,18 @@ import type { QuickCommandRuntime } from '@/stores/quickCommands'
 import {
   Check,
   Copy,
-  Edit,
+  FilePlus2,
   FolderOpen,
   Image as ImageIcon,
+  MessageCircle,
   Pause,
   Plus,
   RefreshCcw,
   Send,
+  Settings,
   Trash2,
 } from 'lucide-vue-next'
+import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Textarea } from '@/components/ui/textarea'
+import { buildAIHeaders, resolveEndpointUrl, useAIFetch } from '@/composables/useAIFetch'
 import useAIConfigStore from '@/stores/aiConfig'
 import { useEditorStore } from '@/stores/editor'
 import { useQuickCommands } from '@/stores/quickCommands'
@@ -35,7 +39,10 @@ import { copyPlain } from '@/utils/clipboard'
 import { store } from '@/utils/storage'
 
 const props = defineProps<{ open: boolean }>()
+
 const emit = defineEmits([`update:open`])
+
+const FEEDBACK_INDICATOR_TIMEOUT_MS = 1500
 
 const editorStore = useEditorStore()
 const { editor } = storeToRefs(editorStore)
@@ -54,9 +61,10 @@ const input = ref<string>(``)
 const inputHistory = ref<string[]>([])
 const historyIndex = ref<number | null>(null)
 
-const loading = ref(false)
-const fetchController = ref<AbortController | null>(null)
+const configVisible = ref(false)
+const { loading, abort: abortFetch, fetchSSE } = useAIFetch()
 const copiedIndex = ref<number | null>(null)
+const insertedIndex = ref<number | null>(null)
 const memoryKey = `ai_memory_context`
 const isQuoteAllContent = ref(false)
 const cmdMgrOpen = ref(false)
@@ -88,8 +96,8 @@ function getSelectedText(): string {
       return cm.getSelection() || ``
     return ``
   }
-  catch (e) {
-    console.warn(`获取选中文本失败`, e)
+  catch {
+    console.warn(`获取选中文本失败`)
     return ``
   }
 }
@@ -119,14 +127,14 @@ onMounted(async () => {
   messages.value = saved
     ? JSON.parse(saved).map((msg: ChatMessage) => ({
         ...msg,
-        id: msg.id || crypto.randomUUID(),
+        id: msg.id || uuidv4(),
       }))
     : getDefaultMessages()
   await scrollToBottom(true)
 })
 
 function getDefaultMessages(): ChatMessage[] {
-  return [{ role: `assistant`, content: `你好，我是 AI 助手，有什么可以帮你的？`, id: crypto.randomUUID() }]
+  return [{ role: `assistant`, content: `你好，我是 AI 助手，有什么可以帮你的？`, id: uuidv4() }]
 }
 
 function generateConversationTitle(): string {
@@ -147,7 +155,7 @@ async function autoSaveCurrentConversation() {
     return
 
   if (!currentConversationId.value) {
-    currentConversationId.value = crypto.randomUUID()
+    currentConversationId.value = uuidv4()
 
     const conversation = {
       id: currentConversationId.value,
@@ -185,7 +193,7 @@ async function loadConversation(id: string) {
   if (saved.length > 0) {
     messages.value = saved.map(msg => ({
       ...msg,
-      id: msg.id || crypto.randomUUID(),
+      id: msg.id || uuidv4(),
     }))
     currentConversationId.value = id
     await store.setJSON(memoryKey, messages.value)
@@ -206,6 +214,11 @@ async function deleteConversation(id: string) {
   }
 
   toast.success(`对话已删除`)
+}
+
+function handleConfigSaved() {
+  configVisible.value = false
+  scrollToBottom(true)
 }
 
 function switchToImageGenerator() {
@@ -253,14 +266,18 @@ function handleKeydown(e: KeyboardEvent) {
 async function copyToClipboard(text: string, index: number) {
   copyPlain(text)
   copiedIndex.value = index
-  setTimeout(() => (copiedIndex.value = null), 1500)
+  setTimeout(() => (copiedIndex.value = null), FEEDBACK_INDICATOR_TIMEOUT_MS)
+}
+
+function insertToDocument(text: string, index: number) {
+  editorStore.insertAtCursor(text)
+  insertedIndex.value = index
+  setTimeout(() => (insertedIndex.value = null), FEEDBACK_INDICATOR_TIMEOUT_MS)
+  toast.success(`已插入文档`)
 }
 
 async function resetMessages() {
-  if (fetchController.value) {
-    fetchController.value.abort()
-    fetchController.value = null
-  }
+  abortFetch()
 
   if (currentConversationId.value) {
     conversationList.value = conversationList.value.filter(c => c.id !== currentConversationId.value)
@@ -276,11 +293,7 @@ async function resetMessages() {
 }
 
 function pauseStreaming() {
-  if (fetchController.value) {
-    fetchController.value.abort()
-    fetchController.value = null
-  }
-  loading.value = false
+  abortFetch()
   const last = messages.value[messages.value.length - 1]
   if (last?.role === `assistant`)
     last.done = true
@@ -370,78 +383,42 @@ async function streamResponse(replyMessageProxy: ChatMessage) {
     max_tokens: maxToken.value,
     stream: true,
   }
-  const headers: Record<string, string> = { 'Content-Type': `application/json` }
-  if (apiKey.value && type.value !== `default`)
-    headers.Authorization = `Bearer ${apiKey.value}`
-
-  fetchController.value = new AbortController()
-  const signal = fetchController.value.signal
+  const headers = buildAIHeaders(apiKey.value, type.value)
+  const url = resolveEndpointUrl(endpoint.value, `chat`)
 
   try {
-    const url = new URL(endpoint.value)
-    if (!url.pathname.endsWith(`/chat/completions`))
-      url.pathname = url.pathname.replace(/\/?$/, `/chat/completions`)
-
-    const res = await window.fetch(url.toString(), {
-      method: `POST`,
-      headers,
-      body: JSON.stringify(payload),
-      signal,
-    })
-    if (!res.ok || !res.body)
-      throw new Error(`响应错误：${res.status} ${res.statusText}`)
-
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder(`utf-8`)
-    let buffer = ``
-
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) {
+    await fetchSSE(url, headers, payload, {
+      onDelta(content) {
+        const last = messages.value[messages.value.length - 1]
+        if (last !== replyMessageProxy)
+          return
+        last.content += content
+        scrollToBottom()
+      },
+      onReasoningDelta(reasoning) {
+        const last = messages.value[messages.value.length - 1]
+        if (last !== replyMessageProxy)
+          return
+        last.reasoning = (last.reasoning || ``) + reasoning
+        scrollToBottom()
+      },
+      onDone() {
         const last = messages.value[messages.value.length - 1]
         if (last.role === `assistant`) {
           last.done = true
-          await scrollToBottom(true)
+          scrollToBottom(true)
         }
-        break
-      }
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split(`\n`)
-      buffer = lines.pop() || ``
-
-      for (const line of lines) {
-        if (!line.trim() || line.trim() === `data: [DONE]`)
-          continue
-        try {
-          const json = JSON.parse(line.replace(/^data: /, ``))
-          const delta = json.choices?.[0]?.delta || {}
-          const last = messages.value[messages.value.length - 1]
-          if (last !== replyMessageProxy)
-            return
-          if (delta.content)
-            last.content += delta.content
-          else if (delta.reasoning_content)
-            last.reasoning = (last.reasoning || ``) + delta.reasoning_content
-          await scrollToBottom()
-        }
-        catch {
-        }
-      }
-    }
+      },
+    })
   }
   catch (e) {
-    if ((e as Error).name !== `AbortError`) {
-      messages.value[messages.value.length - 1].content
-        = `❌ 请求失败: ${(e as Error).message}`
-    }
+    messages.value[messages.value.length - 1].content
+      = `❌ 请求失败: ${(e as Error).message}`
     await scrollToBottom(true)
   }
   finally {
     await store.setJSON(memoryKey, messages.value)
     await autoSaveCurrentConversation()
-    loading.value = false
-    fetchController.value = null
   }
 }
 
@@ -464,27 +441,6 @@ async function sendMessage() {
 
   await streamResponse(replyMessageProxy)
 }
-
-function replaceToEditor(content: string) {
-  if (!editor.value)
-    return
-
-  const editorView = toRaw(editor.value)
-  const selection = editorView.state.selection.main
-
-  if (selection.from !== selection.to) {
-    editorView.dispatch(editorView.state.replaceSelection(content))
-    toast.success(`AI排版内容已经更新在编辑器`)
-  }
-  else {
-    editorView.dispatch({
-      changes: { from: 0, to: editorView.state.doc.length, insert: content },
-    })
-    toast.success(`AI排版内容已经更新在编辑器`)
-  }
-
-  editorView.focus()
-}
 </script>
 
 <template>
@@ -496,6 +452,17 @@ function replaceToEditor(content: string) {
       <DialogHeader class="space-y-1 flex flex-col items-start">
         <div class="space-x-1 flex items-center">
           <DialogTitle>AI 对话</DialogTitle>
+
+          <Button
+            :title="configVisible ? 'AI 对话' : '配置参数'"
+            :aria-label="configVisible ? 'AI 对话' : '配置参数'"
+            variant="ghost"
+            size="icon"
+            @click="configVisible = !configVisible"
+          >
+            <MessageCircle v-if="configVisible" class="h-4 w-4" />
+            <Settings v-else class="h-4 w-4" />
+          </Button>
 
           <Button
             title="AI 文生图"
@@ -574,6 +541,7 @@ function replaceToEditor(content: string) {
 
       <!-- ============ 快捷指令 ============ -->
       <div
+        v-if="!configVisible"
         class="mb-3 flex flex-wrap gap-2 overflow-x-auto pb-1"
       >
         <template v-if="quickCmdStore.commands.length">
@@ -608,8 +576,16 @@ function replaceToEditor(content: string) {
         <QuickCommandManager v-model:open="cmdMgrOpen" />
       </div>
 
+      <!-- ============ 参数配置面板 ============ -->
+      <AIConfig
+        v-if="configVisible"
+        class="mb-4 w-full border rounded-md p-4"
+        @saved="handleConfigSaved"
+      />
+
       <!-- ============ 聊天内容 ============ -->
       <div
+        v-if="!configVisible"
         class="custom-scroll space-y-3 chat-container mb-4 flex-1 overflow-y-auto pr-2"
       >
         <div
@@ -660,6 +636,20 @@ function replaceToEditor(content: string) {
                 <Copy v-else class="text-muted-foreground h-3 w-3" />
               </Button>
               <Button
+                v-if="msg.role === 'assistant' && (msg.done || index < messages.length - 1) && index > 0"
+                variant="ghost"
+                size="icon"
+                class="ml-1 h-5 w-5 p-1"
+                aria-label="插入文档"
+                @click="insertToDocument(msg.content, index)"
+              >
+                <Check
+                  v-if="insertedIndex === index"
+                  class="h-3 w-3 text-green-600"
+                />
+                <FilePlus2 v-else class="text-muted-foreground h-3 w-3" />
+              </Button>
+              <Button
                 v-if="msg.role === 'assistant' && msg.done && index === messages.length - 1"
                 variant="ghost"
                 size="icon"
@@ -669,24 +659,13 @@ function replaceToEditor(content: string) {
               >
                 <RefreshCcw class="text-muted-foreground h-3 w-3" />
               </Button>
-              <Button
-                v-if="msg.role === 'assistant' && msg.done && index === messages.length - 1"
-                variant="ghost"
-                size="icon"
-                class="ml-1 h-5 w-5 p-1"
-                aria-label="一键替换到编辑区"
-                title="一键替换到编辑区"
-                @click="replaceToEditor(msg.content)"
-              >
-                <Edit class="text-muted-foreground h-3 w-3" />
-              </Button>
             </div>
           </div>
         </div>
       </div>
 
       <!-- ============ 输入框 ============ -->
-      <div class="relative mt-2">
+      <div v-if="!configVisible" class="relative mt-2">
         <div
           class="bg-background border-border flex flex-col items-baseline gap-2 border rounded-xl px-3 py-2 pr-12 shadow-inner"
         >

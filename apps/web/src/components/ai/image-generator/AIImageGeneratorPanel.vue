@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { buildAIHeaders, resolveEndpointUrl } from '@/composables/useAIFetch'
 import useAIImageConfigStore from '@/stores/aiImageConfig'
 import { useEditorStore } from '@/stores/editor'
 import { useUIStore } from '@/stores/ui'
@@ -84,7 +85,6 @@ async function cleanExpiredImages() {
 
   // 如果没有时间戳数据，说明是旧版本，默认清除所有数据
   if (!savedTimestamps || timestamps.length === 0) {
-    console.log(`🧹 检测到旧版本数据，清除所有过期图片`)
     generatedImages.value = []
     imagePrompts.value = []
     imageTimestamps.value = []
@@ -113,7 +113,6 @@ async function cleanExpiredImages() {
 
   // 如果有数据被清除，更新存储
   if (validImages.length < images.length) {
-    console.log(`🧹 清除了 ${images.length - validImages.length} 张过期图片`)
     if (validImages.length > 0) {
       await store.setJSON(`ai_generated_images`, validImages)
       await store.setJSON(`ai_image_prompts`, validPrompts)
@@ -125,8 +124,6 @@ async function cleanExpiredImages() {
       await store.remove(`ai_image_timestamps`)
     }
   }
-
-  console.log(`📊 过期检查完成，有效图片数量:`, validImages.length)
 }
 
 /* ---------- 初始数据 ---------- */
@@ -143,7 +140,6 @@ onMounted(async () => {
 
   if (imagesLength < maxLength) {
     // 如果图片少于其他数组，说明数据不一致，清除所有数据
-    console.warn(`⚠️ 数据不一致，清除所有数据`)
     generatedImages.value = []
     imagePrompts.value = []
     imageTimestamps.value = []
@@ -154,10 +150,10 @@ onMounted(async () => {
   else {
     // 补齐较短的数组
     if (promptsLength < imagesLength) {
-      imagePrompts.value = [...imagePrompts.value, ...Array.from<string>({ length: imagesLength - promptsLength }).fill('')]
+      imagePrompts.value = [...imagePrompts.value, ...Array.from<string>({ length: imagesLength - promptsLength }).fill(``)]
     }
     if (timestampsLength < imagesLength) {
-      imageTimestamps.value = [...imageTimestamps.value, ...Array.from<number>({ length: imagesLength - timestampsLength }).fill(Date.now())]
+      imageTimestamps.value = [...imageTimestamps.value, ...Array.from({ length: imagesLength - timestampsLength }, () => Date.now())]
     }
   }
 
@@ -202,31 +198,22 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-/* ---------- 生成图像 ---------- */
-async function generateImage() {
-  if (!prompt.value.trim() || loading.value)
+/* ---------- 生成图像（核心） ---------- */
+async function doGenerateImage(promptText: string, clearInput = false) {
+  if (!promptText.trim() || loading.value)
     return
-
-  // 保存当前提示词用于重新生成
-  const currentPrompt = prompt.value.trim()
-  lastUsedPrompt.value = currentPrompt
 
   loading.value = true
   abortController.value = new AbortController()
 
-  const headers: Record<string, string> = { 'Content-Type': `application/json` }
-  if (apiKey.value && type.value !== `default`)
-    headers.Authorization = `Bearer ${apiKey.value}`
+  const headers = buildAIHeaders(apiKey.value, type.value)
 
   try {
-    const url = new URL(endpoint.value)
-    if (!url.pathname.includes(`/images/`) && !url.pathname.endsWith(`/images/generations`)) {
-      url.pathname = url.pathname.replace(/\/?$/, `/images/generations`)
-    }
+    const url = resolveEndpointUrl(endpoint.value, `image`)
 
     const payload: any = {
       model: model.value,
-      prompt: currentPrompt,
+      prompt: promptText.trim(),
       size: size.value,
       n: 1,
     }
@@ -237,7 +224,7 @@ async function generateImage() {
       payload.style = style.value
     }
 
-    const res = await window.fetch(url.toString(), {
+    const res = await window.fetch(url, {
       method: `POST`,
       headers,
       body: JSON.stringify(payload),
@@ -263,7 +250,7 @@ async function generateImage() {
         const currentTimestamp = Date.now()
 
         generatedImages.value.unshift(finalUrl)
-        imagePrompts.value.unshift(currentPrompt) // 保存对应的prompt
+        imagePrompts.value.unshift(promptText.trim()) // 保存对应的prompt
         imageTimestamps.value.unshift(currentTimestamp) // 保存生成时间戳
         currentImageIndex.value = 0
 
@@ -279,7 +266,8 @@ async function generateImage() {
         await store.setJSON(`ai_image_timestamps`, imageTimestamps.value)
 
         // 清空输入框
-        prompt.value = ``
+        if (clearInput)
+          prompt.value = ``
       }
     }
     else {
@@ -287,18 +275,24 @@ async function generateImage() {
     }
   }
   catch (e) {
-    if ((e as Error).name === `AbortError`) {
-      console.log(`图像生成请求中止`)
-    }
-    else {
-      console.error(`图像生成失败:`, e)
-      // 可以在这里添加错误提示
+    if ((e as Error).name !== `AbortError`) {
+      toast.error(`图像生成失败: ${(e as Error).message}`)
     }
   }
   finally {
     loading.value = false
     abortController.value = null
   }
+}
+
+/* ---------- 生成图像 ---------- */
+async function generateImage() {
+  if (!prompt.value.trim() || loading.value)
+    return
+
+  // 保存当前提示词用于重新生成
+  lastUsedPrompt.value = prompt.value.trim()
+  await doGenerateImage(prompt.value, true)
 }
 
 /* ---------- 取消生成 ---------- */
@@ -342,8 +336,8 @@ async function downloadImage(imageUrl: string, index: number) {
     document.body.removeChild(a)
     window.URL.revokeObjectURL(url)
   }
-  catch (error) {
-    console.error(`下载图像失败:`, error)
+  catch {
+    // Silently fail - user already sees the download button
   }
 }
 
@@ -351,13 +345,11 @@ async function downloadImage(imageUrl: string, index: number) {
 async function copyImageUrl(imageUrl: string) {
   try {
     await copyPlain(imageUrl)
-    console.log(`✅ 图片链接已复制到剪贴板`)
     if (typeof toast !== `undefined`) {
       toast.success(`图片链接已复制到剪贴板`)
     }
   }
-  catch (error) {
-    console.error(`❌ 复制失败:`, error)
+  catch {
     if (typeof toast !== `undefined`) {
       toast.error(`复制失败，请重试`)
     }
@@ -369,104 +361,17 @@ function regenerateImage() {
   // 使用当前图片对应的prompt
   const currentPrompt = imagePrompts.value[currentImageIndex.value]
   if (currentPrompt) {
-    console.log(`🔄 重新生成图像，使用当前图片的prompt:`, currentPrompt)
     // 直接使用当前图片的prompt生成，不修改输入框内容
     regenerateWithPrompt(currentPrompt)
   }
   else {
-    console.warn(`⚠️ 没有找到当前图片的prompt`)
+    // No prompt available, silently skip
   }
 }
 
 /* ---------- 使用指定prompt重新生成 ---------- */
 async function regenerateWithPrompt(promptText: string) {
-  if (!promptText.trim() || loading.value)
-    return
-
-  loading.value = true
-  abortController.value = new AbortController()
-
-  const headers: Record<string, string> = { 'Content-Type': `application/json` }
-  if (apiKey.value && type.value !== `default`)
-    headers.Authorization = `Bearer ${apiKey.value}`
-
-  try {
-    const url = new URL(endpoint.value)
-    if (!url.pathname.includes(`/images/`) && !url.pathname.endsWith(`/images/generations`)) {
-      url.pathname = url.pathname.replace(/\/?$/, `/images/generations`)
-    }
-
-    const payload: any = {
-      model: model.value,
-      prompt: promptText.trim(),
-      size: size.value,
-      n: 1,
-    }
-
-    // 只对 DALL-E 模型添加额外参数
-    if (model.value.includes(`dall-e`)) {
-      payload.quality = quality.value
-      payload.style = style.value
-    }
-
-    const res = await window.fetch(url.toString(), {
-      method: `POST`,
-      headers,
-      body: JSON.stringify(payload),
-      signal: abortController.value.signal,
-    })
-
-    if (!res.ok) {
-      const errorText = await res.text()
-      throw new Error(`${res.status}: ${errorText}`)
-    }
-
-    const data = await res.json()
-
-    if (data.data && data.data.length > 0) {
-      const imageUrl = data.data[0].url || data.data[0].b64_json
-
-      if (imageUrl) {
-        // 如果是 base64 格式，转换为 data URL
-        const finalUrl = imageUrl.startsWith(`data:`) || imageUrl.startsWith(`http`)
-          ? imageUrl
-          : `data:image/png;base64,${imageUrl}`
-
-        const currentTimestamp = Date.now()
-
-        generatedImages.value.unshift(finalUrl)
-        imagePrompts.value.unshift(promptText.trim()) // 保存对应的prompt
-        imageTimestamps.value.unshift(currentTimestamp) // 保存生成时间戳
-        currentImageIndex.value = 0
-
-        // 限制存储的图片数量，避免占用过多存储空间
-        if (generatedImages.value.length > 20) {
-          generatedImages.value = generatedImages.value.slice(0, 20)
-          imagePrompts.value = imagePrompts.value.slice(0, 20)
-          imageTimestamps.value = imageTimestamps.value.slice(0, 20)
-        }
-
-        await store.setJSON(`ai_generated_images`, generatedImages.value)
-        await store.setJSON(`ai_image_prompts`, imagePrompts.value)
-        await store.setJSON(`ai_image_timestamps`, imageTimestamps.value)
-      }
-    }
-    else {
-      throw new Error(`未收到有效的图像数据`)
-    }
-  }
-  catch (e) {
-    if ((e as Error).name === `AbortError`) {
-      console.log(`图像生成请求中止`)
-    }
-    else {
-      console.error(`图像生成失败:`, e)
-    }
-  }
-  finally {
-    loading.value = false
-    abortController.value = null
-  }
+  await doGenerateImage(promptText)
 }
 
 /* ---------- 切换图像 ---------- */
@@ -484,15 +389,12 @@ function nextImage() {
 
 /* ---------- 插入图像到光标位置 ---------- */
 function insertImageToCursor(imageUrl: string) {
-  if (!editor.value) {
-    console.warn(`编辑器未初始化`)
+  if (!editor.value)
     return
-  }
 
   try {
     // 获取当前图片对应的prompt
     const imagePrompt = imagePrompts.value[currentImageIndex.value] || ``
-    console.log(`🔗 插入图片，使用关联的prompt:`, imagePrompt)
 
     // 生成简洁的alt文本
     const altText = imagePrompt.trim()
@@ -512,38 +414,29 @@ function insertImageToCursor(imageUrl: string) {
     // 聚焦编辑器
     editor.value.focus()
 
-    // 显示成功提示
-    toast.success(`AI排版内容已经更新在编辑器`)
-
     // 关闭弹窗
     dialogVisible.value = false
-
-    console.log(`✅ 图像已成功插入到光标位置`)
   }
-  catch (error) {
-    console.error(`❌ 插入图像到光标位置失败:`, error)
+  catch {
+    // Silently fail - likely user cancelled or DOM not available
   }
 }
 
 /* ---------- 查看大图 ---------- */
 function viewFullImage(imageUrl: string) {
-  console.log(`🔍 点击查看大图:`, imageUrl)
-  if (!imageUrl) {
-    console.error(`❌ 图片URL为空`)
+  if (!imageUrl)
     return
-  }
 
   try {
     // 在新窗口中打开图片
     const newWindow = window.open(imageUrl, `_blank`, `width=800,height=600,scrollbars=yes,resizable=yes`)
     if (!newWindow) {
-      console.error(`❌ 无法打开新窗口，可能被浏览器阻止`)
       // 备用方案：在当前标签页打开
       window.open(imageUrl, `_blank`)
     }
   }
-  catch (error) {
-    console.error(`❌ 打开图片失败:`, error)
+  catch {
+    // Silently fail - likely network issue or invalid URL
   }
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Post, PostAccount } from '@md/shared/types'
 import { Check, ChevronDown, ChevronRight, Info, Loader2, Minus, Send } from 'lucide-vue-next'
-import { CheckboxIndicator, CheckboxRoot, Primitive } from 'radix-vue'
+import { CheckboxIndicator, CheckboxRoot, Primitive } from 'reka-ui'
 import { useEditorStore } from '@/stores/editor'
 import { useRenderStore } from '@/stores/render'
 import { useUIStore } from '@/stores/ui'
@@ -40,7 +40,7 @@ const allowPost = computed(() => extensionInstalled.value && allAccounts.value.s
 const platformCategories = [
   {
     name: `媒体平台`,
-    platforms: [`wechat`, `toutiao`, `zhihu`, `baijiahao`, `wangyihao`, `sohu`, `weibo`, `bilibili`, `sspai`, `twitter`, `douyin`, `xiaohongshu`],
+    platforms: [`wechat`, `toutiao`, `zhihu`, `baijiahao`, `wangyihao`, `sohu`, `weibo`, `bilibili`, `sspai`, `twitter`, `douyin`, `xiaohongshu`, `douban`],
   },
   {
     name: `博客平台`,
@@ -114,7 +114,7 @@ async function prePost() {
     auto = {
       thumb: document.querySelector<HTMLImageElement>(`#output img`)?.src ?? ``,
       title: [1, 2, 3, 4, 5, 6]
-        .map(h => document.querySelector(`#output h${h}`)!)
+        .map(h => document.querySelector(`#output h${h}`))
         .find(h => h)
         ?.textContent ?? ``,
       desc: document.querySelector(`#output p`)?.textContent?.trim() ?? ``,
@@ -123,8 +123,8 @@ async function prePost() {
       accounts,
     }
   }
-  catch (error) {
-    console.log(`error`, error)
+  catch {
+    // 静默失败
   }
   finally {
     form.value = {
@@ -143,6 +143,7 @@ watch(dialogVisible, (newVal) => {
 declare global {
   interface Window {
     syncPost: (data: { thumb: string, title: string, desc: string, content: string }) => void
+
     $cose: any
   }
 }
@@ -175,13 +176,13 @@ function startLoginDetection() {
   let hasReceivedAny = false
 
   // 设置超时机制：如果 15 秒内没有任何响应，则停止检测
+  const LOGIN_CHECK_TIMEOUT_MS = 15000
   const timeoutId = setTimeout(() => {
     if (!hasReceivedAny) {
-      console.log('[COSE] 登录检测超时，停止检测')
       allAccounts.value = allAccounts.value.map(a => ({ ...a, isChecking: false }))
       isCheckingLogin.value = false
     }
-  }, 15000)
+  }, LOGIN_CHECK_TIMEOUT_MS)
 
   // 检查是否支持渐进式 API
   if (typeof window.$cose.getAccountsProgressive === 'function') {
@@ -268,8 +269,16 @@ function getPlatformUrl(type: string): string {
     douyin: 'https://creator.douyin.com/creator-micro/content/post/article?default-tab=5&enter_from=publish_page&media_type=article&type=new',
     xiaohongshu: 'https://creator.xiaohongshu.com/publish/publish?from=menu&target=article',
     elecfans: 'https://www.elecfans.com/d/article/md/',
+    douban: 'https://www.douban.com/note/create',
   }
   return urls[type] || '#'
+}
+
+function onAvatarError(account: PostAccount, event: Event) {
+  const img = event.target as HTMLImageElement
+  if (!account)
+    return
+  img.style.display = 'none'
 }
 
 function checkExtension() {
@@ -280,6 +289,8 @@ function checkExtension() {
   }
 
   // 如果插件还没加载，5秒内每 500ms 检查一次
+  const EXTENSION_CHECK_INTERVAL_MS = 500
+  const MAX_EXTENSION_CHECKS = 10
   let count = 0
   const timer = setInterval(async () => {
     if (window.$cose !== undefined) {
@@ -290,10 +301,10 @@ function checkExtension() {
     }
 
     count++
-    if (count > 10) {
+    if (count > MAX_EXTENSION_CHECKS) {
       clearInterval(timer)
     }
-  }, 500)
+  }, EXTENSION_CHECK_INTERVAL_MS)
 }
 
 onBeforeMount(() => {
@@ -370,7 +381,7 @@ onBeforeMount(() => {
                   </div>
                   <div class="flex items-center gap-1 ml-2">
                     <CheckboxRoot
-                      :checked="isCategoryAllSelected(category.accounts) ? true : isCategoryIndeterminate(category.accounts) ? 'indeterminate' : false"
+                      :model-value="isCategoryAllSelected(category.accounts) ? true : isCategoryIndeterminate(category.accounts) ? 'indeterminate' : false"
                       class="bg-background hover:bg-muted h-[18px] w-[18px] flex shrink-0 appearance-none items-center justify-center border border-gray-300 rounded-[3px] outline-hidden"
                       @click.stop="toggleCategorySelectAll(category.accounts)"
                     >
@@ -389,7 +400,7 @@ onBeforeMount(() => {
                     class="flex items-center gap-2 whitespace-nowrap"
                   >
                     <CheckboxRoot
-                      v-model:checked="account.checked"
+                      v-model="account.checked"
                       :disabled="!account.loggedIn"
                       class="bg-background hover:bg-muted h-[18px] w-[18px] flex shrink-0 appearance-none items-center justify-center border border-gray-300 rounded-[3px] outline-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -415,8 +426,7 @@ onBeforeMount(() => {
                         :src="account.avatar"
                         alt=""
                         class="ml-1 h-4 w-4 rounded-full object-cover"
-                        crossorigin="anonymous"
-                        @error="(e: Event) => (e.target as HTMLImageElement).style.display = 'none'"
+                        @error="onAvatarError(account, $event)"
                       >
                       <span class="text-sm text-muted-foreground">@{{ account.displayName }}</span>
                     </template>

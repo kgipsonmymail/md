@@ -15,9 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { buildAIHeaders, resolveEndpointUrl, useAIFetch } from '@/composables/useAIFetch'
 import useAIConfigStore from '@/stores/aiConfig'
 import { useEditorStore } from '@/stores/editor'
-import { useFormattingTemplateStore } from '@/stores/formattingTemplate'
 
 /* -------------------- props / emits -------------------- */
 const props = defineProps<{
@@ -31,14 +31,11 @@ const emit = defineEmits([`update:open`])
 const configVisible = ref(false)
 const dialogVisible = ref(props.open)
 const message = ref(``)
-const thinkingMessage = ref(``)
-const isInThinking = ref(false)
-const loading = ref(false)
-const abortController = ref<AbortController | null>(null)
+const { loading, abort: abortAI, fetchSSE } = useAIFetch()
 const customPrompts = ref<string[]>([])
 const hasResult = ref(false)
 const selectedAction = ref<
-  `optimize` | `summarize` | `spellcheck` | `translate-zh` | `translate-en` | `wechat-format` | `custom`
+  `optimize` | `summarize` | `spellcheck` | `translate-zh` | `translate-en` | `expand` | `continue` | `custom`
 >(`optimize`)
 const currentText = ref(``)
 const error = ref(``)
@@ -50,18 +47,8 @@ const resultContainer = ref<HTMLElement | null>(null)
 /* -------------------- dialog state sync -------------------- */
 watch(() => props.open, (val) => {
   dialogVisible.value = val
-  if (val) {
-    // 如有选中文本则用选中内容，否则用编辑器全文
-    const text = props.selectedText.trim()
-    if (text) {
-      currentText.value = text
-    }
-    else {
-      const editorView = toRaw(editorStore.editor!)
-      if (editorView) {
-        currentText.value = editorView.state.doc.toString()
-      }
-    }
+  if (val && props.selectedText.trim()) {
+    currentText.value = props.selectedText
     resetState()
   }
 })
@@ -71,9 +58,6 @@ watch(dialogVisible, val => emit(`update:open`, val))
 const AIConfigStore = useAIConfigStore()
 const { apiKey, endpoint, model, temperature, maxToken, type }
   = storeToRefs(AIConfigStore)
-
-const formattingStore = useFormattingTemplateStore()
-const { allTemplates, selectedTemplate, selectedTemplateId } = storeToRefs(formattingStore)
 
 /* -------------------- action options -------------------- */
 interface ActionOption {
@@ -109,9 +93,14 @@ const actionOptions: ActionOption[] = [
     defaultPrompt: `请将文本翻译为自然流畅的英文。`,
   },
   {
-    value: `wechat-format`,
-    label: `公众号排版`,
-    defaultPrompt: ``,
+    value: `expand`,
+    label: `扩写`,
+    defaultPrompt: `请对文本进行扩写，丰富细节、充实内容，保持原有风格和意图。`,
+  },
+  {
+    value: `continue`,
+    label: `续写`,
+    defaultPrompt: `请根据文本内容，以相同风格继续向下补充撰写，保持语言连贯。`,
   },
   { value: `custom`, label: `自定义`, defaultPrompt: `` },
 ]
@@ -154,14 +143,11 @@ function removePrompt(index: number) {
 
 function resetState() {
   message.value = ``
-  thinkingMessage.value = ``
-  isInThinking.value = false
   loading.value = false
   hasResult.value = false
   error.value = ``
 
-  abortController.value?.abort()
-  abortController.value = null
+  abortAI()
 }
 
 /* -------------------- AI call -------------------- */
@@ -172,24 +158,14 @@ async function runAIAction() {
 
   resetState()
   loading.value = true
-  abortController.value = new AbortController()
 
-  // 公众号排版模式使用模板的 systemPrompt，其他模式使用简单 prompt
-  const isWechatFormat = selectedAction.value === `wechat-format`
-  const systemPrompt = isWechatFormat
-    ? selectedTemplate.value.systemPrompt
-    : `你是一名专业的多语言文本助手，请根据用户的指令处理下列内容。在输出时，不要输出任何额外的信息，只输出处理后的文本。`
-
+  const systemPrompt
+    = `你是一名专业的多语言文本助手，请根据用户的指令处理下列内容。在输出时，不要输出任何额外的信息，只输出处理后的文本。`
   const picked = actionOptions.find(o => o.value === selectedAction.value)!
   const parts: string[] = []
 
-  if (isWechatFormat) {
-    // 公众号排版模式：用户指令简化，核心规则在 systemPrompt 中
-    parts.push(`请为以下文章进行公众号排版优化。`)
-  }
-  else if (picked.defaultPrompt) {
+  if (picked.defaultPrompt)
     parts.push(picked.defaultPrompt)
-  }
   if (customPrompts.value.length)
     parts.push(`请同时满足以下要求：${customPrompts.value.join(`、`)}。`)
   if (!parts.length)
@@ -209,102 +185,29 @@ async function runAIAction() {
     stream: true,
   }
 
-  const headers: Record<string, string> = {
-    'Content-Type': `application/json`,
-  }
-  if (apiKey.value && type.value !== `default`) {
-    headers.Authorization = `Bearer ${apiKey.value}`
-  }
+  const headers = buildAIHeaders(apiKey.value, type.value)
+  const url = resolveEndpointUrl(endpoint.value, `chat`)
 
   try {
-    const url = new URL(endpoint.value)
-    if (!url.pathname.endsWith(`/chat/completions`)) {
-      url.pathname = url.pathname.replace(/\/?$/, `/chat/completions`)
-    }
-
-    const res = await window.fetch(url.toString(), {
-      method: `POST`,
-      headers,
-      body: JSON.stringify(payload),
-      signal: abortController.value!.signal,
-    })
-
-    if (!res.ok || !res.body)
-      throw new Error(`响应错误：${res.status}`)
-
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder(`utf-8`)
-    let buffer = ``
-
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done)
-        break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split(`\n`)
-      buffer = lines.pop() || ``
-
-      for (const line of lines) {
-        if (!line.trim() || line.trim() === `data: [DONE]`)
-          continue
-        try {
-          const json = JSON.parse(line.replace(/^data: /, ``))
-          const choice = json.choices?.[0]
-
-          // 处理 reasoning_content（DeepSeek 等模型的思考内容）
-          const reasoningDelta = choice?.delta?.reasoning_content
-          if (reasoningDelta) {
-            thinkingMessage.value += reasoningDelta
-            continue
-          }
-
-          let delta = choice?.delta?.content ?? ``
-
-          // 过滤 <think>...</think> 标签包裹的思考内容
-          if (delta.includes(`<think>`)) {
-            isInThinking.value = true
-          }
-          if (isInThinking.value) {
-            if (delta.includes(`</think>`)) {
-              // 取 </think> 之后的内容
-              delta = delta.split(`</think>`).slice(1).join(`</think>`)
-              isInThinking.value = false
-            }
-            else {
-              thinkingMessage.value += delta
-              continue
-            }
-          }
-
-          if (delta) {
-            message.value += delta
-            hasResult.value = true
-          }
+    await fetchSSE(url, headers, payload, {
+      onDelta(content) {
+        if (content.trim()) {
+          message.value += content
+          hasResult.value = true
         }
-        catch {}
-      }
-    }
+      },
+    })
   }
   catch (e: any) {
-    if (e.name === `AbortError`) {
-      console.log(`Request aborted by user.`)
-    }
-    else {
-      console.error(`请求失败：`, e)
-      error.value = e.message || `请求失败`
-    }
-  }
-  finally {
-    loading.value = false
+    console.error(`请求失败：`, e)
+    error.value = e.message || `请求失败`
   }
 }
 
 /* -------------------- abort handler -------------------- */
 function stopAI() {
-  if (loading.value && abortController.value) {
-    abortController.value.abort()
-    loading.value = false
+  if (loading.value) {
+    abortAI()
   }
 }
 
@@ -312,25 +215,14 @@ function stopAI() {
 function replaceText() {
   const editorView = toRaw(editorStore.editor!)!
   const selection = editorView.state.selection.main
-  const hasSelection = selection.from !== selection.to
+  editorView.dispatch(editorView.state.replaceSelection(message.value))
 
-  if (hasSelection) {
-    // 有选中文本：替换选中部分
-    editorView.dispatch(editorView.state.replaceSelection(message.value))
-    const newSelection = editorView.state.selection.main
-    editorView.dispatch({
-      selection: { anchor: selection.from, head: newSelection.head },
-    })
-  }
-  else {
-    // 无选中文本：替换全文
-    editorView.dispatch({
-      changes: { from: 0, to: editorView.state.doc.length, insert: message.value },
-    })
-  }
+  // 选中替换后的文本
+  const newSelection = editorView.state.selection.main
+  editorView.dispatch({
+    selection: { anchor: selection.from, head: newSelection.head },
+  })
   editorView.focus()
-
-  toast.success(`AI排版内容已经更新在编辑器`)
 
   currentText.value = message.value
   resetState()
@@ -406,32 +298,6 @@ defineExpose({ dialogVisible, runAIAction, replaceText, show, close, stopAI })
           </Select>
         </div>
 
-        <!-- template selector for wechat-format -->
-        <div v-if="selectedAction === 'wechat-format'">
-          <div class="mb-1.5 text-sm font-medium">
-            选择排版模板
-          </div>
-          <Select v-model="selectedTemplateId">
-            <SelectTrigger class="w-full">
-              <SelectValue placeholder="请选择排版模板" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem
-                  v-for="tpl in allTemplates"
-                  :key="tpl.id"
-                  :value="tpl.id"
-                >
-                  {{ tpl.name }}
-                  <span v-if="tpl.description" class="text-muted-foreground ml-1 text-xs">
-                    · {{ tpl.description }}
-                  </span>
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-
         <!-- original text -->
         <div>
           <div class="mb-1.5 text-sm font-medium">
@@ -444,10 +310,10 @@ defineExpose({ dialogVisible, runAIAction, replaceText, show, close, stopAI })
           </div>
         </div>
 
-        <!-- custom prompts (also for wechat-format to add extra requirements) -->
-        <div v-if="selectedAction === 'custom' || selectedAction === 'wechat-format'">
+        <!-- custom prompts -->
+        <div v-if="selectedAction === 'custom'">
           <div class="mb-1.5 text-sm font-medium">
-            {{ selectedAction === 'wechat-format' ? '额外要求（可选）' : '自定义提示词（可选）' }}
+            自定义提示词（可选）
           </div>
           <div
             class="custom-scroll border-border max-h-24 min-h-[40px] flex flex-wrap gap-2 overflow-y-auto border rounded px-2 py-1"
@@ -467,7 +333,7 @@ defineExpose({ dialogVisible, runAIAction, replaceText, show, close, stopAI })
             </template>
             <input
               class="min-w-[100px] flex-1 bg-transparent py-1 text-sm focus:outline-hidden"
-              :placeholder="selectedAction === 'wechat-format' ? '输入额外要求后按回车' : '输入提示词后按回车'"
+              placeholder="输入提示词后按回车"
               @keydown.enter="addPrompt"
             >
           </div>
@@ -478,31 +344,10 @@ defineExpose({ dialogVisible, runAIAction, replaceText, show, close, stopAI })
           {{ error }}
         </div>
 
-        <!-- thinking process (collapsible) -->
-        <details v-if="thinkingMessage" class="border-border border rounded">
-          <summary class="cursor-pointer px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/30">
-            AI 思考过程（{{ thinkingMessage.length }} 字）
-          </summary>
-          <div class="custom-scroll max-h-24 overflow-y-auto whitespace-pre-line px-3 py-2 text-xs text-muted-foreground/70">
-            {{ thinkingMessage }}
-          </div>
-        </details>
-
         <!-- result -->
-        <div v-if="message" class="relative">
-          <div class="mb-1.5 flex items-center justify-between">
-            <div class="text-sm font-medium">
-              处理结果
-            </div>
-            <Button
-              v-if="hasResult && !loading"
-              size="sm"
-              variant="outline"
-              class="h-7 px-2 text-xs"
-              @click="replaceText"
-            >
-              一键替换到编辑区
-            </Button>
+        <div v-if="message">
+          <div class="mb-1.5 text-sm font-medium">
+            处理结果
           </div>
           <div
             ref="resultContainer"
